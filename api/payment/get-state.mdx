@@ -37,11 +37,23 @@ This is a view function that does not require a wallet or gas fees.
 
   <ParamField path="paymentInfo" type="PaymentInfo" required>
     Payment information object:
-    - `payer`: Address of the account that paid
-    - `receiver`: Address of the account receiving
-    - `token`: Address of the ERC20 token
-    - `startTime`: Timestamp when authorization began
-    - `escrowDuration`: Duration of the escrow period
+    - `token`: ERC20 token address
+    - `maxAmount`: Maximum authorized amount
+    - `authorizationExpiry`, `refundExpiry`: Expiration timestamps
+    - `minFeeBps`, `maxFeeBps`: Fee bounds
+    - `feeReceiver`, `salt`: Fee recipient and unique ID
+    - `payer`: Address of the account paying
+    - `receiver`: Address receiving payment
+    - `token`: ERC20 token address
+    - `maxAmount`: Maximum authorized amount
+    - `authorizationExpiry`, `refundExpiry`: Expiration timestamps
+    - `minFeeBps`, `maxFeeBps`: Fee bounds
+    - `feeReceiver`, `salt`: Fee recipient and unique ID
+    - `token`: ERC20 token address
+    - `maxAmount`: Maximum authorized amount
+    - `authorizationExpiry`, `refundExpiry`: Expiration timestamps
+    - `minFeeBps`, `maxFeeBps`: Fee bounds
+    - `feeReceiver`, `salt`: Fee recipient and unique ID
     - Additional fields as defined by the PaymentInfo type
   </ParamField>
 </ParamField>

@@ -33,11 +33,23 @@ This is typically used when a service cannot be delivered, when the payer reques
 
   <ParamField path="paymentInfo" type="PaymentInfo" required>
     Payment information object matching the original authorization:
-    - `payer`: Address of the account that paid
+    - `token`: ERC20 token address
+    - `maxAmount`: Maximum authorized amount
+    - `authorizationExpiry`, `refundExpiry`: Expiration timestamps
+    - `minFeeBps`, `maxFeeBps`: Fee bounds
+    - `feeReceiver`, `salt`: Fee recipient and unique ID
     - `receiver`: Address of the account that was to receive
-    - `token`: Address of the ERC20 token
-    - `startTime`: Timestamp when authorization began
-    - `escrowDuration`: Duration of the escrow period
+    - `receiver`: Address receiving payment
+    - `token`: ERC20 token address
+    - `maxAmount`: Maximum authorized amount
+    - `authorizationExpiry`, `refundExpiry`: Expiration timestamps
+    - `minFeeBps`, `maxFeeBps`: Fee bounds
+    - `feeReceiver`, `salt`: Fee recipient and unique ID
+    - `token`: ERC20 token address
+    - `maxAmount`: Maximum authorized amount
+    - `authorizationExpiry`, `refundExpiry`: Expiration timestamps
+    - `minFeeBps`, `maxFeeBps`: Fee bounds
+    - `feeReceiver`, `salt`: Fee recipient and unique ID
     - Additional fields as defined by the PaymentInfo type
   </ParamField>
 

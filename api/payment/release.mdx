@@ -32,13 +32,16 @@ This is useful for scenarios where the service has been delivered satisfactorily
   </ParamField>
 
   <ParamField path="paymentInfo" type="PaymentInfo" required>
-    Payment information object matching the original authorization:
-    - `payer`: Address of the account that paid
-    - `receiver`: Address of the account receiving
-    - `token`: Address of the ERC20 token
-    - `startTime`: Timestamp when authorization began
-    - `escrowDuration`: Duration of the escrow period
-    - Additional fields as defined by the PaymentInfo type
+    Payment information object matching the original authorization containing:
+    - `operator`: Address of the payment operator
+    - `payer`: Address of the account paying
+    - `receiver`: Address receiving payment
+    - `token`: ERC20 token address
+    - `maxAmount`: Maximum authorized amount
+    - `authorizationExpiry`, `refundExpiry`: Expiration timestamps
+    - `minFeeBps`, `maxFeeBps`: Fee bounds in basis points
+    - `feeReceiver`: Fee recipient address
+    - `salt`: Unique payment identifier
   </ParamField>
 
   <ParamField path="amount" type="bigint" required>
@@ -65,12 +68,18 @@ const walletClient = createWalletClient({
 })
 
 const paymentInfo = {
+  operator: '0x...',
   payer: '0x...',
   receiver: '0x...',
   token: '0x...', // USDC address
-  startTime: 1234567890,
-  escrowDuration: 86400 * 7, // 7 days
-  // ... other required fields
+  maxAmount: 1000000n,
+  preApprovalExpiry: 0,
+  authorizationExpiry: 1735689600,
+  refundExpiry: 1738368000,
+  minFeeBps: 0,
+  maxFeeBps: 500,
+  feeReceiver: '0x...',
+  salt: 0x123456789abcdefn,
 }
 
 // Release funds during escrow period

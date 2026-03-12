@@ -33,12 +33,18 @@ This action requires a wallet client with an active account and will submit a tr
 
   <ParamField path="paymentInfo" type="PaymentInfo" required>
     Payment information object containing:
+    - `operator`: Address of the payment operator
     - `payer`: Address of the account paying
-    - `receiver`: Address of the account receiving
-    - `token`: Address of the ERC20 token being transferred
-    - `startTime`: Timestamp when authorization begins
-    - `escrowDuration`: Duration of the escrow period in seconds
-    - Additional fields as defined by the PaymentInfo type
+    - `receiver`: Address of the account receiving payment
+    - `token`: Address of the ERC20 token (or zero address for native ETH)
+    - `maxAmount`: Maximum amount that can be authorized
+    - `preApprovalExpiry`: Expiration timestamp for pre-approval signatures
+    - `authorizationExpiry`: Expiration timestamp for authorization
+    - `refundExpiry`: Expiration timestamp for refunds
+    - `minFeeBps`: Minimum fee in basis points
+    - `maxFeeBps`: Maximum fee in basis points
+    - `feeReceiver`: Address receiving operator fees
+    - `salt`: Unique salt for payment identification
   </ParamField>
 
   <ParamField path="amount" type="bigint" required>
@@ -73,12 +79,18 @@ const walletClient = createWalletClient({
 })
 
 const paymentInfo = {
-  payer: '0x...',
-  receiver: '0x...',
-  token: '0x...', // USDC address
-  startTime: Math.floor(Date.now() / 1000),
-  escrowDuration: 86400 * 7, // 7 days
-  // ... other required fields
+  operator: '0x...', // Operator address
+  payer: '0x...', // Payer address
+  receiver: '0x...', // Receiver address
+  token: '0x...', // USDC token address
+  maxAmount: 1000000n, // 1 USDC (6 decimals)
+  preApprovalExpiry: 0, // No pre-approval
+  authorizationExpiry: 1735689600, // Unix timestamp
+  refundExpiry: 1738368000, // Unix timestamp
+  minFeeBps: 0, // 0% minimum fee
+  maxFeeBps: 500, // 5% maximum fee
+  feeReceiver: '0x...', // Fee recipient
+  salt: 0x123456789abcdefn, // Unique salt
 }
 
 const txHash = await authorize(walletClient, {

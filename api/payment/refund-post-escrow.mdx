@@ -35,9 +35,17 @@ Unlike `refundInEscrow`, which returns escrowed funds, this action pulls tokens 
     Payment information object matching the original authorization:
     - `payer`: Address to refund tokens to
     - `receiver`: Address to take refund from
-    - `token`: Address of the ERC20 token
-    - `startTime`: Timestamp when authorization began
-    - `escrowDuration`: Duration of the escrow period
+    - `receiver`: Address receiving payment
+    - `token`: ERC20 token address
+    - `maxAmount`: Maximum authorized amount
+    - `authorizationExpiry`, `refundExpiry`: Expiration timestamps
+    - `minFeeBps`, `maxFeeBps`: Fee bounds
+    - `feeReceiver`, `salt`: Fee recipient and unique ID
+    - `token`: ERC20 token address
+    - `maxAmount`: Maximum authorized amount
+    - `authorizationExpiry`, `refundExpiry`: Expiration timestamps
+    - `minFeeBps`, `maxFeeBps`: Fee bounds
+    - `feeReceiver`, `salt`: Fee recipient and unique ID
     - Additional fields as defined by the PaymentInfo type
   </ParamField>
 
