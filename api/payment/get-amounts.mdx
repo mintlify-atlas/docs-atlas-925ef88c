@@ -1,0 +1,216 @@
+---
+title: 'getPaymentAmounts'
+description: 'Get payment amounts in a structured format'
+---
+
+## Function Signature
+
+```typescript
+async function getPaymentAmounts(
+  publicClient: PublicClient,
+  parameters: GetPaymentAmountsParameters
+): Promise<PaymentAmounts>
+```
+
+## Description
+
+Returns the payment state in a structured object format with named fields. This is a convenience wrapper around `getPaymentState` that provides a more developer-friendly interface.
+
+This is a read-only function that does not require a wallet or gas fees.
+
+## Parameters
+
+<ParamField path="publicClient" type="PublicClient" required>
+  Viem public client for reading blockchain state
+</ParamField>
+
+<ParamField path="parameters" type="GetPaymentAmountsParameters" required>
+  Configuration object for the query
+
+  <ParamField path="operatorAddress" type="Address" required>
+    Address of the payment operator contract
+  </ParamField>
+
+  <ParamField path="chainId" type="number" required>
+    Chain ID where the payment exists (e.g., 1 for Ethereum mainnet)
+  </ParamField>
+
+  <ParamField path="paymentInfo" type="PaymentInfo" required>
+    Payment information object:
+    - `payer`: Address of the account that paid
+    - `receiver`: Address of the account receiving
+    - `token`: Address of the ERC20 token
+    - `startTime`: Timestamp when authorization began
+    - `escrowDuration`: Duration of the escrow period
+    - Additional fields as defined by the PaymentInfo type
+  </ParamField>
+</ParamField>
+
+## Returns
+
+<ResponseField name="amounts" type="PaymentAmounts">
+  Object containing structured payment amounts:
+
+  <ResponseField name="hasCollectedPayment" type="boolean">
+    Whether any payment has been collected into escrow
+  </ResponseField>
+
+  <ResponseField name="capturableAmount" type="bigint">
+    Amount of tokens that can be captured/released to the receiver
+  </ResponseField>
+
+  <ResponseField name="refundableAmount" type="bigint">
+    Amount of tokens that can be refunded to the payer
+  </ResponseField>
+</ResponseField>
+
+## Example
+
+```typescript
+import { getPaymentAmounts } from '@x402r/core'
+import { createPublicClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const publicClient = createPublicClient({
+  chain: mainnet,
+  transport: http(),
+})
+
+const paymentInfo = {
+  payer: '0x...',
+  receiver: '0x...',
+  token: '0x...', // USDC address
+  startTime: 1234567890,
+  escrowDuration: 86400 * 7, // 7 days
+  // ... other required fields
+}
+
+const amounts = await getPaymentAmounts(publicClient, {
+  operatorAddress: '0x...',
+  chainId: 1,
+  paymentInfo,
+})
+
+console.log('Payment exists:', amounts.hasCollectedPayment)
+console.log('Can capture:', amounts.capturableAmount.toString())
+console.log('Can refund:', amounts.refundableAmount.toString())
+```
+
+## SDK Usage
+
+When using the x402r SDK client:
+
+```typescript
+import { createX402rClient } from '@x402r/sdk'
+
+const client = createX402rClient({
+  operatorAddress: '0x...',
+  chainId: 1,
+  publicClient,
+})
+
+const amounts = await client.payment.getAmounts(paymentInfo)
+
+if (amounts.hasCollectedPayment) {
+  console.log(`Capturable: ${amounts.capturableAmount}`)
+  console.log(`Refundable: ${amounts.refundableAmount}`)
+}
+```
+
+## Understanding the Response
+
+### hasCollectedPayment
+
+Indicates whether this payment has been initialized:
+- `true`: Payment was authorized and funds are (or were) in escrow
+- `false`: No payment exists for this payment info
+
+### capturableAmount
+
+Amount available to transfer to the receiver:
+- Starts at the authorized amount
+- Decreases when funds are `charge`d, `release`d, or `refundInEscrow`ed
+- Can be zero if all funds have been captured or refunded
+
+### refundableAmount
+
+Amount available to return to the payer:
+- During escrow: typically equal to `capturableAmount`
+- After escrow: may be zero (depending on configuration)
+- Can be used for partial refunds
+
+## Common Use Cases
+
+### Validate sufficient balance before capture
+
+```typescript
+const amounts = await client.payment.getAmounts(paymentInfo)
+const amountToCharge = 1000000n // 1 USDC
+
+if (amounts.capturableAmount >= amountToCharge) {
+  await client.payment.charge(paymentInfo, amountToCharge, collector, data)
+} else {
+  throw new Error('Insufficient capturable balance')
+}
+```
+
+### Display payment status to users
+
+```typescript
+const amounts = await client.payment.getAmounts(paymentInfo)
+
+if (!amounts.hasCollectedPayment) {
+  return 'Payment not found'
+}
+
+if (amounts.capturableAmount === 0n) {
+  return 'Payment fully processed'
+}
+
+return `Available: ${formatTokenAmount(amounts.capturableAmount)}`
+```
+
+### Check refund eligibility
+
+```typescript
+const amounts = await client.payment.getAmounts(paymentInfo)
+
+if (amounts.refundableAmount > 0n) {
+  console.log('Refund available:', amounts.refundableAmount.toString())
+  // Allow user to request refund
+} else {
+  console.log('No refundable amount')
+}
+```
+
+## Comparison with getPaymentState
+
+**getPaymentAmounts** (this function):
+```typescript
+const { hasCollectedPayment, capturableAmount, refundableAmount } = 
+  await getPaymentAmounts(publicClient, params)
+```
+
+**getPaymentState**:
+```typescript
+const [hasCollectedPayment, capturableAmount, refundableAmount] = 
+  await getPaymentState(publicClient, params)
+```
+
+Both functions return the same data, but `getPaymentAmounts` provides a more readable object interface with named properties.
+
+## Related Actions
+
+- [get-state](/api/payment/get-state) - Get state as a tuple (lower-level)
+- [authorize](/api/payment/authorize) - Create payment
+- [charge](/api/payment/charge) - Capture funds
+- [release](/api/payment/release) - Release funds early
+- [refund-in-escrow](/api/payment/refund-in-escrow) - Refund funds
+
+## Performance
+
+This function internally calls `getPaymentState`, which makes two contract reads:
+1. Get escrow contract address from operator
+2. Get payment state from escrow
+
+The function is efficient for occasional queries but consider caching results for frequently accessed payments.

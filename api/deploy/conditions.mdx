@@ -1,0 +1,196 @@
+---
+title: "Condition Builders"
+description: "Build and deploy complex condition trees with DSL helpers"
+---
+
+## createConditionHelpers
+
+Creates a condition builder DSL with helper methods for constructing condition trees.
+
+```typescript
+function createConditionHelpers(
+  singletons: ConditionSingletonAddresses
+): ConditionHelpers
+```
+
+### Parameters
+
+- `singletons` (ConditionSingletonAddresses): Condition singleton contract addresses
+  - `payer` (Address): Address of the payer singleton condition
+  - `receiver` (Address): Address of the receiver singleton condition
+  - `alwaysTrue` (Address): Address of the always-true singleton condition
+
+### Returns
+
+ConditionHelpers object with:
+- `PAYER` (Address): Payer singleton address
+- `RECEIVER` (Address): Receiver singleton address
+- `ALWAYS_TRUE` (Address): Always-true singleton address
+- `and(...conditions)`: Create an AND condition
+- `or(...conditions)`: Create an OR condition
+- `not(condition)`: Create a NOT condition
+- `staticAddress(designatedAddress)`: Create a static address condition
+
+### Example
+
+```typescript
+import { createConditionHelpers } from '@x402r/core/deploy'
+import { getConditionSingletons } from '@x402r/core/config'
+
+const singletons = getConditionSingletons(chainId)
+const c = createConditionHelpers(singletons)
+
+// Build a complex condition tree
+const condition = c.or(
+  c.RECEIVER,
+  c.and(
+    c.staticAddress('0x...'),
+    c.not(c.PAYER)
+  )
+)
+```
+
+---
+
+## resolveCondition
+
+Recursively deploys a condition tree, deploying all necessary contracts.
+
+```typescript
+async function resolveCondition(
+  walletClient: WalletClient,
+  publicClient: PublicClient,
+  factoryAddresses: FactoryAddresses,
+  input: ConditionInput
+): Promise<ConditionResolution>
+```
+
+### Parameters
+
+- `walletClient` (WalletClient): The wallet client for signing transactions
+- `publicClient` (PublicClient): The public client for reading blockchain state
+- `factoryAddresses` (FactoryAddresses): Factory contract addresses for deploying conditions
+- `input` (ConditionInput): The condition tree to deploy (can be an Address or condition object)
+
+### Returns
+
+Promise\<ConditionResolution\> containing:
+- `address` (Address): The root condition contract address
+- `deployments` (DeployResult[]): Array of all deployment results in the tree
+
+### Example
+
+```typescript
+import { resolveCondition, createConditionHelpers } from '@x402r/core/deploy'
+import { getFactoryAddresses, getConditionSingletons } from '@x402r/core/config'
+
+const factories = getFactoryAddresses(chainId)
+const singletons = getConditionSingletons(chainId)
+const c = createConditionHelpers(singletons)
+
+const condition = c.or(
+  c.RECEIVER,
+  c.staticAddress('0x...')
+)
+
+const result = await resolveCondition(
+  walletClient,
+  publicClient,
+  factories,
+  condition
+)
+
+console.log('Root condition at:', result.address)
+console.log('Deployed', result.deployments.length, 'contracts')
+```
+
+---
+
+## previewConditionAddress
+
+Computes the final address of a condition tree without deploying any contracts.
+
+```typescript
+async function previewConditionAddress(
+  publicClient: PublicClient,
+  factoryAddresses: FactoryAddresses,
+  input: ConditionInput
+): Promise<Address>
+```
+
+### Parameters
+
+- `publicClient` (PublicClient): The public client for reading blockchain state
+- `factoryAddresses` (FactoryAddresses): Factory contract addresses
+- `input` (ConditionInput): The condition tree to preview
+
+### Returns
+
+Promise\<Address\>: The computed root condition contract address
+
+### Example
+
+```typescript
+import { previewConditionAddress, createConditionHelpers } from '@x402r/core/deploy'
+import { getFactoryAddresses, getConditionSingletons } from '@x402r/core/config'
+
+const factories = getFactoryAddresses(chainId)
+const singletons = getConditionSingletons(chainId)
+const c = createConditionHelpers(singletons)
+
+const condition = c.and(c.PAYER, c.RECEIVER)
+
+const address = await previewConditionAddress(
+  publicClient,
+  factories,
+  condition
+)
+
+console.log('Condition will be deployed at:', address)
+```
+
+---
+
+## Condition Input Types
+
+The condition DSL supports the following input types:
+
+### Address
+
+A plain Ethereum address string references an existing condition contract.
+
+### AndConditionInput
+
+```typescript
+{
+  type: 'and',
+  conditions: readonly ConditionInput[]
+}
+```
+
+### OrConditionInput
+
+```typescript
+{
+  type: 'or',
+  conditions: readonly ConditionInput[]
+}
+```
+
+### NotConditionInput
+
+```typescript
+{
+  type: 'not',
+  condition: ConditionInput
+}
+```
+
+### StaticAddressConditionInput
+
+```typescript
+{
+  type: 'staticAddress',
+  designatedAddress: Address
+}
+```

@@ -1,0 +1,236 @@
+---
+title: 'Action Groups'
+description: 'Overview of all SDK action groups organized by protocol domain'
+---
+
+The x402r SDK organizes operations into action groups by protocol domain. Each group provides methods for a specific aspect of the payment lifecycle.
+
+## Core Action Groups
+
+These action groups are always available on every client instance.
+
+### payment
+
+Core payment lifecycle operations.
+
+**Write Methods:**
+- `authorize(paymentInfo, amount, tokenCollector, collectorData)` — Create a new payment authorization
+- `charge(paymentInfo, amount, tokenCollector, collectorData)` — Charge an authorized payment
+- `release(paymentInfo, amount)` — Release funds to merchant
+- `refundInEscrow(paymentInfo, amount)` — Refund during escrow period
+- `refundPostEscrow(paymentInfo, amount, tokenCollector, collectorData)` — Refund after escrow
+- `approvePostEscrowRefund(token, amount)` — Approve token spending for post-escrow refunds
+
+**Read Methods:**
+- `getPostEscrowRefundAllowance(token, owner)` — Check refund allowance
+- `getState(paymentInfo)` — Get raw payment state `[exists, authorized, charged]`
+- `getAmounts(paymentInfo)` — Get structured amounts (authorized, charged, released, refundable)
+
+```typescript
+const amounts = await x402r.payment.getAmounts(paymentInfo)
+console.log(amounts.refundableAmount) // bigint
+
+await x402r.payment.release(paymentInfo, amounts.refundableAmount)
+```
+
+### evidence
+
+Dispute evidence submission and retrieval.
+
+- `submit(paymentInfo, nonce, cid)` — Submit IPFS CID as evidence
+- `get(paymentInfo, nonce, index)` — Get single evidence entry
+- `getBatch(paymentInfo, nonce, offset, count)` — Get multiple evidence entries
+- `count(paymentInfo, nonce)` — Get total evidence count
+
+```typescript
+// Submit evidence
+const cid = await uploadToIPFS(evidenceData)
+await x402r.evidence.submit(paymentInfo, 0n, cid)
+
+// Retrieve evidence
+const totalEvidence = await x402r.evidence.count(paymentInfo, 0n)
+const batch = await x402r.evidence.getBatch(paymentInfo, 0n, 0n, 10n)
+```
+
+### operator
+
+Operator configuration and fee management.
+
+- `getConfig()` — Get operator slot configuration
+- `getFeeAddresses()` — Get fee recipient addresses
+- `calculateFees(paymentInfo, amount)` — Calculate operator and protocol fees
+- `calculateOperatorFeeBps(paymentInfo, amount)` — Get operator fee in basis points
+- `calculateProtocolFeeBps(paymentInfo, amount)` — Get protocol fee in basis points
+- `getAuthorizedFees(paymentInfoHash)` — Get fees for authorized payment
+- `getAccumulatedProtocolFees(token)` — Get undistributed protocol fees
+- `distributeFees(token)` — Distribute accumulated fees
+
+```typescript
+const config = await x402r.operator.getConfig()
+const fees = await x402r.operator.calculateFees(paymentInfo, 1000000n)
+console.log(fees.operatorFee, fees.protocolFee)
+```
+
+### watch
+
+Event watching for real-time updates.
+
+- `onPayment(callback)` — Watch payment lifecycle events
+- `onRefundRequest(callback)` — Watch refund request events  
+- `onFeeDistribution(callback)` — Watch fee distribution events
+
+Each method returns an unwatch function:
+
+```typescript
+const unwatch = x402r.watch.onPayment((log) => {
+  console.log('Payment event:', log)
+})
+
+// Stop watching
+unwatch()
+```
+
+<Note>
+  Event types are currently typed as `unknown`. Future versions will provide strongly-typed event logs.
+</Note>
+
+## Conditional Action Groups
+
+These action groups are only available when their corresponding contract addresses are configured.
+
+### refund
+
+<Info>
+  Available when `refundRequestAddress` is provided in config
+</Info>
+
+Dispute lifecycle management for refund requests.
+
+**Write Methods:**
+- `request(paymentInfo, amount, nonce)` — Payer creates refund request
+- `cancel(paymentInfo, nonce)` — Payer cancels pending request
+- `deny(paymentInfo, nonce)` — Arbiter denies request
+- `refuse(paymentInfo, nonce)` — Merchant refuses request
+- `approveWithSignature(paymentInfo, nonce, amount, expiry, signature)` — Arbiter approves with signature
+
+**Read Methods:**
+- `get(paymentInfo, nonce)` — Get refund request data
+- `getByKey(compositeKey)` — Get by composite key hash
+- `getStatus(paymentInfo, nonce)` — Get request status enum
+- `has(paymentInfo, nonce)` — Check if request exists
+- `getStoredPaymentInfo(paymentInfoHash)` — Retrieve stored payment info
+- `getPayerRequests(payer, offset, count)` — List payer's requests
+- `getReceiverRequests(receiver, offset, count)` — List merchant's requests
+- `getOperatorRequests(operator, offset, count)` — List operator's requests
+- `getCancelCount(paymentInfo, nonce)` — Get number of cancellations
+- `getCancelledAmount(paymentInfo, nonce, cancelIndex)` — Get cancelled amount by index
+
+```typescript
+const x402r = createX402r({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x…',
+  refundRequestAddress: '0xRefund…',
+})
+
+// Now refund actions are available
+await x402r.refund!.request(paymentInfo, amount, 0n)
+const status = await x402r.refund!.getStatus(paymentInfo, 0n)
+```
+
+### escrow
+
+<Info>
+  Available when `escrowPeriodAddress` is provided in config
+</Info>
+
+Escrow period validation for time-based conditions.
+
+- `isDuringEscrow(paymentInfo)` — Check if payment is in escrow period
+- `getAuthorizationTime(paymentInfo)` — Get timestamp of authorization
+- `getDuration()` — Get escrow period duration in seconds
+
+```typescript
+const x402r = createX402r({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x…',
+  escrowPeriodAddress: '0xEscrow…',
+})
+
+const inEscrow = await x402r.escrow!.isDuringEscrow(paymentInfo)
+if (inEscrow) {
+  await x402r.payment.refundInEscrow(paymentInfo, amount)
+} else {
+  await x402r.payment.refundPostEscrow(paymentInfo, amount, collector, data)
+}
+```
+
+### freeze
+
+<Info>
+  Available when `freezeAddress` is provided in config
+</Info>
+
+Payment freeze controls for arbiters.
+
+- `freeze(paymentInfo)` — Freeze payment state
+- `unfreeze(paymentInfo)` — Unfreeze payment state
+- `isFrozen(paymentInfo)` — Check freeze status
+
+```typescript
+const x402r = createX402r({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x…',
+  freezeAddress: '0xFreeze…',
+})
+
+// Arbiter freezes payment during investigation
+await x402r.freeze!.freeze(paymentInfo)
+
+const frozen = await x402r.freeze!.isFrozen(paymentInfo)
+console.log('Payment frozen:', frozen)
+
+// Release after resolution
+await x402r.freeze!.unfreeze(paymentInfo)
+```
+
+## Type Definitions
+
+All action group interfaces are defined in `types.ts`:
+
+- `PaymentActions` — client.ts:69-96
+- `RefundActions` — client.ts:104-152
+- `EvidenceActions` — client.ts:154-168
+- `EscrowActions` — client.ts:98-102
+- `FreezeActions` — client.ts:170-174
+- `OperatorActions` — client.ts:176-194
+- `WatchActions` — client.ts:198-201
+
+Each action group method returns `Promise<Hash>` for write operations or the appropriate return type for reads.
+
+## Checking Availability
+
+Always check if conditional action groups exist before calling their methods:
+
+```typescript
+if (x402r.refund) {
+  const status = await x402r.refund.getStatus(paymentInfo, 0n)
+} else {
+  console.log('Refund actions not configured')
+}
+```
+
+TypeScript will correctly narrow the type when you use optional chaining or existence checks.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Client Setup" icon="gear" href="/sdk/client">
+    Configure the SDK client with action groups
+  </Card>
+  <Card title="Role Presets" icon="user-tag" href="/sdk/role-presets">
+    Use narrowed clients for specific roles
+  </Card>
+</CardGroup>

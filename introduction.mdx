@@ -1,0 +1,77 @@
+---
+title: Introduction
+description: TypeScript SDK for x402r refundable payments on EVM chains
+---
+
+## Overview
+
+x402r SDK is a TypeScript library for building refundable payment systems on EVM-compatible blockchains. It provides a complete client interface for managing escrow-based payments with dispute resolution, making it easy to implement secure, reversible transactions on-chain.
+
+<Note>
+  **Not production-ready.** Packages are not yet published to npm. Expect breaking changes.
+</Note>
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Payment Lifecycle Management" icon="credit-card">
+    Full control over authorize, charge, release, and refund operations with built-in escrow periods
+  </Card>
+  <Card title="Dispute Resolution" icon="scale-balanced">
+    Evidence submission, arbiter workflows, and post-escrow refund approval mechanisms
+  </Card>
+  <Card title="Multi-Chain Support" icon="globe">
+    Works across 11+ EVM chains with shared CREATE3 addresses on every network
+  </Card>
+  <Card title="Type-Safe API" icon="shield-check">
+    Built with TypeScript for full type safety and role-based client presets (payer, merchant, arbiter)
+  </Card>
+</CardGroup>
+
+## Architecture
+
+The x402r SDK is organized into three complementary packages:
+
+### Package Structure
+
+| Package | Description | Use Case |
+| --- | --- | --- |
+| `@x402r/sdk` | Client factory, role presets, action groups | **Start here** — high-level client API |
+| `@x402r/core` | Types, ABIs, config, raw actions, deploy utils | Low-level action functions or custom clients |
+| `@x402r/helpers` | Payment option builder for x402 HTTP 402 flows | Building payment options with escrow fields |
+
+<Info>
+  `@x402r/sdk` re-exports everything from `@x402r/core`, so you only need to install the SDK package for most use cases.
+</Info>
+
+### Client Action Groups
+
+The SDK client organizes operations into logical action groups:
+
+- **payment** — Core payment lifecycle: authorize, charge, release, refund operations and state queries
+- **refund** — Dispute lifecycle: request, cancel, deny, refuse, approve with signature
+- **evidence** — Evidence submission and retrieval for dispute resolution
+- **escrow** — Escrow period checks and authorization time queries
+- **freeze** — Emergency payment freezing and unfreezing (operator feature)
+- **operator** — Configuration retrieval, fee calculation, and distribution
+- **watch** — Event watchers for payments, refunds, and fee distributions
+
+## Supported Chains
+
+All contracts share the same CREATE3 addresses on every chain:
+
+- **Mainnets:** Ethereum · Base · Polygon · Arbitrum One · Optimism · Celo · Avalanche C-Chain · Monad · Linea
+- **Testnets:** Base Sepolia · Ethereum Sepolia
+
+See the [chain configuration](https://github.com/x402r/x402r-sdk/blob/main/packages/core/src/config/index.ts) for the full registry.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install the SDK and set up your development environment
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Build your first refundable payment in minutes
+  </Card>
+</CardGroup>

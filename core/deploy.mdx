@@ -1,0 +1,414 @@
+---
+title: 'Deploy'
+description: 'Factory deploy functions, condition builder, and deployment presets'
+---
+
+## Overview
+
+The deploy module provides functions for deploying payment operators and protocol components using deterministic CREATE2 factories. It includes low-level factory wrappers and high-level deployment presets.
+
+## Quick Start
+
+Deploy a complete marketplace operator with a single function:
+
+```ts
+import { deployMarketplaceOperator } from '@x402r/core/deploy'
+import { createWalletClient, createPublicClient, http } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
+import { base } from 'viem/chains'
+
+const account = privateKeyToAccount('0x...')
+const walletClient = createWalletClient({
+  account,
+  chain: base,
+  transport: http(),
+})
+
+const publicClient = createPublicClient({
+  chain: base,
+  transport: http(),
+})
+
+const deployment = await deployMarketplaceOperator(
+  walletClient,
+  publicClient,
+  {
+    chainId: 8453,
+    feeRecipient: account.address,
+    arbiter: '0x...', // Arbiter address for dispute resolution
+    escrowPeriodSeconds: 86400n, // 24 hours
+    freezeDurationSeconds: 3600n, // 1 hour (optional)
+    operatorFeeBps: 100n, // 1% fee (optional)
+  }
+)
+
+console.log('Operator deployed at:', deployment.operatorAddress)
+console.log('New deployments:', deployment.summary.newCount)
+console.log('Reused deployments:', deployment.summary.existingCount)
+```
+
+## Deployment Presets
+
+### deployMarketplaceOperator
+
+Deploy a fully configured payment operator for marketplace use cases.
+
+```ts
+import { deployMarketplaceOperator } from '@x402r/core/deploy'
+import type { MarketplaceOperatorDeployment } from '@x402r/core/deploy'
+
+const deployment: MarketplaceOperatorDeployment = await deployMarketplaceOperator(
+  walletClient,
+  publicClient,
+  {
+    chainId: 8453,
+    feeRecipient: '0x...',
+    arbiter: '0x...',
+    escrowPeriodSeconds: 86400n,
+    freezeDurationSeconds: 3600n, // Optional
+    operatorFeeBps: 100n,          // Optional (default: 0)
+    authorizedCodehash: '0x...',   // Optional
+  }
+)
+```
+
+**Options:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `chainId` | `number` | Yes | Chain to deploy on |
+| `feeRecipient` | `Address` | Yes | Operator fee recipient |
+| `arbiter` | `Address` | Yes | Arbiter for dispute resolution |
+| `escrowPeriodSeconds` | `bigint` | Yes | Escrow period duration |
+| `freezeDurationSeconds` | `bigint` | No | Freeze duration (default: 0) |
+| `operatorFeeBps` | `bigint` | No | Operator fee in basis points (default: 0) |
+| `authorizedCodehash` | `Hex` | No | Authorized contract codehash |
+
+**Returns:**
+```ts
+interface MarketplaceOperatorDeployment {
+  operatorAddress: Address
+  escrowPeriodAddress: Address
+  freezeAddress: Address | null
+  signatureConditionAddress: Address
+  refundInEscrowConditionAddress: Address
+  signatureRefundRequestAddress: Address
+  feeCalculatorAddress: Address | null
+  operatorConfig: OperatorConfig
+  deployments: DeployResult[]
+  summary: {
+    newCount: number
+    existingCount: number
+    txHashes: `0x${string}`[]
+  }
+}
+```
+
+**What it deploys:**
+1. **EscrowPeriod** — Manages escrow period timing
+2. **Freeze** (if `freezeDurationSeconds > 0`) — Allows freezing payments
+3. **AndCondition** (if freeze enabled) — Combines escrow + freeze conditions
+4. **SignatureCondition** — Arbiter signature verification
+5. **OrCondition** — Receiver OR arbiter can approve refunds in escrow
+6. **SignatureRefundRequest** — Arbiter refund approval
+7. **FeeCalculator** (if `operatorFeeBps > 0`) — Static fee calculator
+8. **PaymentOperator** — Main operator contract
+
+### previewMarketplaceOperator
+
+Preview addresses without deploying.
+
+```ts
+import { previewMarketplaceOperator } from '@x402r/core/deploy'
+
+const preview = await previewMarketplaceOperator(publicClient, {
+  chainId: 8453,
+  feeRecipient: '0x...',
+  arbiter: '0x...',
+  escrowPeriodSeconds: 86400n,
+})
+
+console.log('Operator will deploy at:', preview.operatorAddress)
+```
+
+### deployArbiterSetup
+
+Deploy just the arbiter contracts (SignatureCondition + SignatureRefundRequest).
+
+```ts
+import { deployArbiterSetup } from '@x402r/core/deploy'
+
+const deployment = await deployArbiterSetup(
+  walletClient,
+  publicClient,
+  {
+    chainId: 8453,
+    arbiter: '0x...',
+  }
+)
+
+console.log('SignatureCondition:', deployment.signatureConditionAddress)
+console.log('SignatureRefundRequest:', deployment.signatureRefundRequestAddress)
+```
+
+**Use case:** Pre-deploy arbiter contracts for reuse across multiple operators.
+
+### previewArbiterSetup
+
+Preview arbiter setup addresses.
+
+```ts
+import { previewArbiterSetup } from '@x402r/core/deploy'
+
+const preview = await previewArbiterSetup(publicClient, {
+  chainId: 8453,
+  arbiter: '0x...',
+})
+```
+
+## Factory Functions
+
+Low-level factory wrappers for deploying individual components.
+
+### deployOperator
+
+Deploy a payment operator with custom configuration.
+
+```ts
+import { deployOperator } from '@x402r/core/deploy'
+import { getFactoryAddress } from '@x402r/core/config'
+import type { OperatorConfig } from '@x402r/core/types'
+
+const factoryAddress = getFactoryAddress(8453, 'paymentOperator')
+
+const config: OperatorConfig = {
+  feeRecipient: '0x...',
+  feeCalculator: '0x...',
+  authorizeCondition: '0x...',
+  authorizeRecorder: '0x...',
+  chargeCondition: '0x...',
+  chargeRecorder: '0x...',
+  releaseCondition: '0x...',
+  releaseRecorder: '0x...',
+  refundInEscrowCondition: '0x...',
+  refundInEscrowRecorder: '0x...',
+  refundPostEscrowCondition: '0x...',
+  refundPostEscrowRecorder: '0x...',
+}
+
+const result = await deployOperator(walletClient, publicClient, {
+  factoryAddress,
+  config,
+})
+
+console.log('Operator:', result.address)
+console.log('Was already deployed:', !result.isNew)
+```
+
+### computeOperatorAddress
+
+Compute the deterministic operator address before deploying.
+
+```ts
+import { computeOperatorAddress } from '@x402r/core/deploy'
+
+const address = await computeOperatorAddress(publicClient, {
+  factoryAddress,
+  config,
+})
+```
+
+### Available Factory Functions
+
+All components have both `deploy*` and `compute*Address` functions:
+
+**Operators:**
+- `deployOperator` / `computeOperatorAddress`
+
+**Conditions:**
+- `deployEscrowPeriod` / `computeEscrowPeriodAddress`
+- `deployFreeze` / `computeFreezeAddress`
+- `deploySignatureCondition` / `computeSignatureConditionAddress`
+- `deployStaticAddressCondition` / `computeStaticAddressConditionAddress`
+- `deployAndCondition` / `computeAndConditionAddress`
+- `deployOrCondition` / `computeOrConditionAddress`
+- `deployNotCondition` / `computeNotConditionAddress`
+
+**Other:**
+- `deployFeeCalculator` / `computeFeeCalculatorAddress`
+- `deployRecorderCombinator` / `computeRecorderCombinatorAddress`
+- `deploySignatureRefundRequest` / `computeSignatureRefundRequestAddress`
+
+## Condition Builder
+
+Build complex conditions using a high-level DSL.
+
+```ts
+import { createConditionHelpers, resolveCondition } from '@x402r/core/deploy'
+import type { ConditionInput } from '@x402r/core/deploy'
+
+const { and, or, not, staticAddress } = createConditionHelpers(8453)
+
+// Build condition: (payer OR receiver) AND signature
+const condition: ConditionInput = and([
+  or([
+    staticAddress('0x...'), // payer
+    staticAddress('0x...'), // receiver
+  ]),
+  staticAddress('0x...'), // signature condition
+])
+
+// Resolve to actual addresses
+const result = await resolveCondition(
+  walletClient,
+  publicClient,
+  8453,
+  condition
+)
+
+console.log('Condition address:', result.address)
+console.log('Deployed contracts:', result.deployments)
+```
+
+**Condition Types:**
+```ts
+type ConditionInput =
+  | Address                          // Direct address
+  | AndConditionInput               // AND combinator
+  | OrConditionInput                // OR combinator
+  | NotConditionInput               // NOT combinator
+  | StaticAddressConditionInput     // Static address check
+```
+
+## DeployResult
+
+All deploy functions return a `DeployResult`:
+
+```ts
+interface DeployResult {
+  address: Address    // Deployed contract address
+  isNew: boolean     // true if newly deployed, false if already existed
+  hash: Hash | null  // Transaction hash (null if already existed)
+}
+```
+
+**Idempotent Deployments:**
+
+All factory deploys are idempotent — if a contract already exists at the deterministic address, the function returns immediately without sending a transaction:
+
+```ts
+const result1 = await deployOperator(walletClient, publicClient, { ... })
+console.log(result1.isNew) // true
+console.log(result1.hash)  // "0x..."
+
+const result2 = await deployOperator(walletClient, publicClient, { ... })
+console.log(result2.isNew) // false
+console.log(result2.hash)  // null
+console.log(result1.address === result2.address) // true
+```
+
+## Usage Examples
+
+### Custom Operator
+
+```ts
+import {
+  deployOperator,
+  deployEscrowPeriod,
+  deploySignatureCondition,
+} from '@x402r/core/deploy'
+import { getFactoryAddresses, getConditionSingletons } from '@x402r/core/config'
+import { zeroAddress } from 'viem'
+
+const chainId = 8453
+const factories = getFactoryAddresses(chainId)
+const singletons = getConditionSingletons(chainId)
+
+// Deploy escrow period
+const escrow = await deployEscrowPeriod(walletClient, publicClient, {
+  factoryAddress: factories.escrowPeriod,
+  escrowPeriod: 86400n,
+  authorizedCodehash: '0x00',
+})
+
+// Deploy signature condition
+const signature = await deploySignatureCondition(walletClient, publicClient, {
+  factoryAddress: factories.signatureCondition,
+  signer: arbiter,
+})
+
+// Deploy operator
+const operator = await deployOperator(walletClient, publicClient, {
+  factoryAddress: factories.paymentOperator,
+  config: {
+    feeRecipient: account.address,
+    feeCalculator: zeroAddress,
+    authorizeCondition: singletons.alwaysTrue,
+    authorizeRecorder: escrow.address,
+    chargeCondition: zeroAddress,
+    chargeRecorder: zeroAddress,
+    releaseCondition: escrow.address,
+    releaseRecorder: zeroAddress,
+    refundInEscrowCondition: singletons.receiver,
+    refundInEscrowRecorder: zeroAddress,
+    refundPostEscrowCondition: singletons.receiver,
+    refundPostEscrowRecorder: zeroAddress,
+  },
+})
+
+console.log('Operator deployed:', operator.address)
+```
+
+### Preview Before Deploy
+
+```ts
+import { previewMarketplaceOperator, deployMarketplaceOperator } from '@x402r/core/deploy'
+
+// Preview addresses
+const preview = await previewMarketplaceOperator(publicClient, options)
+console.log('Will deploy operator at:', preview.operatorAddress)
+
+// User approves
+
+// Deploy
+const deployment = await deployMarketplaceOperator(
+  walletClient,
+  publicClient,
+  options
+)
+
+assert(deployment.operatorAddress === preview.operatorAddress)
+```
+
+## Error Handling
+
+```ts
+import { deployMarketplaceOperator } from '@x402r/core/deploy'
+import { ConfigError, ContractCallError } from '@x402r/core/errors'
+
+try {
+  const deployment = await deployMarketplaceOperator(
+    walletClient,
+    publicClient,
+    options
+  )
+} catch (error) {
+  if (error instanceof ConfigError) {
+    console.error('Configuration error:', error.message)
+    // "Factories are not deployed on Goerli (chainId: 5)"
+  } else if (error instanceof ContractCallError) {
+    console.error('Deployment failed:', error.message)
+  }
+}
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Config" icon="globe" href="/core/config">
+    Get factory addresses and chain config
+  </Card>
+  <Card title="Types" icon="code" href="/core/types">
+    OperatorConfig and ConditionConfig types
+  </Card>
+</CardGroup>

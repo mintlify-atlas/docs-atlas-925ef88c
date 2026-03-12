@@ -1,97 +1,108 @@
 ---
 title: "Introduction"
-description: "Welcome to the new home for your documentation"
+description: "TypeScript SDK for x402r refundable payments on EVM chains"
 ---
 
-## Setting up
+# Welcome to x402r SDK
 
-Get your documentation site up and running in minutes.
+Build refundable payment flows with escrow protection on Ethereum and EVM-compatible chains.
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get started with x402r SDK in minutes
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Installation" icon="download" href="/installation">
+    Install the SDK in your project
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="SDK Guide" icon="book" href="/sdk/client">
+    Learn about the client and action groups
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="API Reference" icon="code" href="/api/payment/authorize">
+    Explore the complete API documentation
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## What is x402r?
 
-Everything you need to create world-class documentation.
+x402r is a refundable payments protocol that enables escrow-protected transactions on EVM chains. The SDK provides a type-safe TypeScript interface for building payment flows with built-in refund mechanisms, dispute resolution, and configurable fee structures.
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+### Key Features
 
-## Need inspiration?
+<CardGroup cols={2}>
+  <Card title="Escrow Protection" icon="shield-check">
+    All payments include an escrow period during which refunds can be processed
+  </Card>
+  <Card title="Multi-Chain Support" icon="layer-group">
+    Works on Ethereum, Base, Polygon, Arbitrum, Optimism, and more with CREATE3 addresses
+  </Card>
+  <Card title="Type-Safe Client" icon="check-double">
+    Fully typed TypeScript client with action groups organized by domain
+  </Card>
+  <Card title="Role-Based Presets" icon="users">
+    Pre-configured clients for payer, merchant, and arbiter roles
+  </Card>
+  <Card title="Evidence System" icon="file-lines">
+    Submit and retrieve evidence for payment disputes
+  </Card>
+  <Card title="Extensible Architecture" icon="puzzle-piece">
+    Extend the client with custom action groups and plugins
+  </Card>
+</CardGroup>
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+## Quick Example
+
+```typescript
+import { createPublicClient, createWalletClient, http } from 'viem'
+import { baseSepolia } from 'viem/chains'
+import { createX402r } from '@x402r/sdk'
+
+const publicClient = createPublicClient({ 
+  chain: baseSepolia, 
+  transport: http() 
+})
+
+const walletClient = createWalletClient({ 
+  chain: baseSepolia, 
+  transport: http() 
+})
+
+const x402r = createX402r({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x…',
+})
+
+// Get payment state
+const state = await x402r.payment.getState(paymentInfo)
+
+// Request a refund
+const txHash = await x402r.refund.request(paymentInfo, amount, nonce)
+```
+
+## Supported Chains
+
+The SDK supports all major EVM chains with consistent CREATE3 contract addresses:
+
+- Ethereum Mainnet & Sepolia
+- Base & Base Sepolia
+- Polygon
+- Arbitrum One
+- Optimism
+- Celo
+- Avalanche C-Chain
+- Linea
+- Monad
+
+## Next Steps
+
+<CardGroup cols={3}>
+  <Card title="Quickstart Guide" icon="play" href="/quickstart">
+    Build your first refundable payment
+  </Card>
+  <Card title="Action Groups" icon="layer-group" href="/sdk/action-groups">
+    Explore available operations
+  </Card>
+  <Card title="Examples" icon="code" href="/examples/basic-payment">
+    View real-world usage examples
+  </Card>
+</CardGroup>

@@ -1,0 +1,272 @@
+---
+title: 'Actions'
+description: '50+ action functions for reading and writing to x402r protocol contracts'
+---
+
+## Overview
+
+Actions are low-level functions that directly interact with x402r protocol smart contracts. They provide type-safe interfaces for both read operations (using `PublicClient`) and write operations (using `WalletClient`).
+
+## Action Categories
+
+Actions are organized into seven functional categories:
+
+### Escrow
+
+Query payment state and escrow period information.
+
+```ts
+import {
+  getPaymentState,
+  getPaymentAmounts,
+  getAuthorizationTime,
+  getEscrowPeriodDuration,
+  isDuringEscrowPeriod,
+} from '@x402r/core/actions'
+```
+
+**Functions:**
+- `getPaymentState` — Get authorization status, authorized amount, and charged amount
+- `getPaymentAmounts` — Get detailed payment amounts breakdown
+- `getAuthorizationTime` — Get the timestamp when payment was authorized
+- `getEscrowPeriodDuration` — Get the configured escrow period duration
+- `isDuringEscrowPeriod` — Check if payment is currently in escrow period
+
+### Evidence
+
+Submit and retrieve evidence for dispute resolution.
+
+```ts
+import {
+  submitEvidence,
+  getEvidence,
+  getEvidenceBatch,
+  getEvidenceCount,
+  SubmitterRole,
+} from '@x402r/core/actions'
+```
+
+**Functions:**
+- `submitEvidence` — Submit evidence for a refund request
+- `getEvidence` — Retrieve a specific evidence entry
+- `getEvidenceBatch` — Retrieve multiple evidence entries
+- `getEvidenceCount` — Get total evidence count for a request
+
+### Fees
+
+Calculate, query, and distribute protocol and operator fees.
+
+```ts
+import {
+  calculateTotalFees,
+  calculateOperatorFeeBps,
+  calculateProtocolFeeBps,
+  getAuthorizedFees,
+  getFeeAddresses,
+  getAccumulatedProtocolFees,
+  distributeFees,
+  formatFeeBreakdown,
+  validateFeeBounds,
+} from '@x402r/core/actions'
+```
+
+**Functions:**
+- `calculateTotalFees` — Calculate total fees for a payment
+- `calculateOperatorFeeBps` — Calculate operator fee in basis points
+- `calculateProtocolFeeBps` — Calculate protocol fee in basis points
+- `getAuthorizedFees` — Get fees for an authorized payment
+- `getFeeAddresses` — Get fee recipient addresses
+- `getAccumulatedProtocolFees` — Query accumulated protocol fees
+- `distributeFees` — Distribute collected fees to recipients
+- `formatFeeBreakdown` — Format fee breakdown for display
+- `validateFeeBounds` — Validate fee parameters are within bounds
+
+### Freeze
+
+Freeze and unfreeze payments to prevent unauthorized releases.
+
+```ts
+import {
+  freezePayment,
+  unfreezePayment,
+  isFrozen,
+} from '@x402r/core/actions'
+```
+
+**Functions:**
+- `freezePayment` — Freeze a payment to prevent release
+- `unfreezePayment` — Unfreeze a previously frozen payment
+- `isFrozen` — Check if a payment is currently frozen
+
+### Operator
+
+Core payment lifecycle operations: authorize, charge, and release.
+
+```ts
+import {
+  authorize,
+  charge,
+  release,
+  getOperatorConfig,
+  getConditionAddress,
+  getEscrowAddress,
+} from '@x402r/core/actions'
+```
+
+**Functions:**
+- `authorize` — Authorize a payment and lock funds in escrow
+- `charge` — Charge an authorized payment
+- `release` — Release escrowed funds to receiver
+- `getOperatorConfig` — Get operator configuration
+- `getConditionAddress` — Get address of a condition contract in a specific slot
+- `getEscrowAddress` — Get the escrow contract address
+
+### Refund
+
+Manage refund requests and approval workflows.
+
+```ts
+import {
+  requestRefund,
+  approveRefundWithSignature,
+  cancelRefundRequest,
+  denyRefundRequest,
+  refuseRefundRequest,
+  getRefundRequest,
+  getRefundRequestByKey,
+  getRefundRequestStatus,
+  hasRefundRequest,
+  getPayerRefundRequests,
+  getReceiverRefundRequests,
+  getOperatorRefundRequests,
+  getCancelCount,
+  getCancelledAmount,
+  getStoredPaymentInfo,
+  RefundRequestStatus,
+} from '@x402r/core/actions'
+```
+
+**Functions:**
+- `requestRefund` — Submit a refund request
+- `approveRefundWithSignature` — Approve refund with arbiter signature
+- `cancelRefundRequest` — Cancel a pending refund request
+- `denyRefundRequest` — Deny a refund request
+- `refuseRefundRequest` — Refuse to process a refund request
+- `getRefundRequest` — Get refund request by ID
+- `getRefundRequestByKey` — Get refund request by key
+- `getRefundRequestStatus` — Get current status of a refund request
+- `hasRefundRequest` — Check if a refund request exists
+- `getPayerRefundRequests` — Get all refund requests from a payer
+- `getReceiverRefundRequests` — Get all refund requests for a receiver
+- `getOperatorRefundRequests` — Get all refund requests for an operator
+- `getCancelCount` — Get number of cancelled refunds
+- `getCancelledAmount` — Get total cancelled refund amount
+- `getStoredPaymentInfo` — Get stored payment info from a refund request
+
+### Refund Budget
+
+Manage post-escrow refund budgets and approvals.
+
+```ts
+import {
+  refundInEscrow,
+  refundPostEscrow,
+  approvePostEscrowRefund,
+  getPostEscrowRefundAllowance,
+} from '@x402r/core/actions'
+```
+
+**Functions:**
+- `refundInEscrow` — Process refund during escrow period
+- `refundPostEscrow` — Process refund after escrow period
+- `approvePostEscrowRefund` — Approve post-escrow refund budget
+- `getPostEscrowRefundAllowance` — Get remaining post-escrow refund allowance
+
+## Action Function Pattern
+
+All action functions follow a consistent pattern:
+
+### Read Actions
+
+Read actions require a `PublicClient` and return data from the blockchain:
+
+```ts
+import { getPaymentState } from '@x402r/core/actions'
+import type { PublicClient } from 'viem'
+
+async function example(publicClient: PublicClient) {
+  const [isAuthorized, authorizedAmount, chargedAmount] = await getPaymentState(
+    publicClient,
+    {
+      operatorAddress: '0x...',
+      chainId: 8453,
+      paymentInfo,
+    }
+  )
+}
+```
+
+### Write Actions
+
+Write actions require a `WalletClient` and return a transaction hash:
+
+```ts
+import { authorize } from '@x402r/core/actions'
+import type { WalletClient } from 'viem'
+
+async function example(walletClient: WalletClient) {
+  const txHash = await authorize(walletClient, {
+    operatorAddress: '0x...',
+    paymentInfo,
+    amount: 1000000n, // 1 USDC
+    tokenCollector: '0x...',
+    collectorData: '0x',
+  })
+}
+```
+
+## Error Handling
+
+All actions wrap contract calls with typed error handling:
+
+```ts
+import { getPaymentState } from '@x402r/core/actions'
+import { ContractCallError, ConfigError } from '@x402r/core/errors'
+
+try {
+  const state = await getPaymentState(publicClient, params)
+} catch (error) {
+  if (error instanceof ContractCallError) {
+    console.error('Contract call failed:', error.message)
+  } else if (error instanceof ConfigError) {
+    console.error('Configuration error:', error.message)
+  }
+}
+```
+
+## Type Safety
+
+Every action exports parameter and return types:
+
+```ts
+import type {
+  GetPaymentStateParameters,
+  GetPaymentStateReturnType,
+} from '@x402r/core/actions'
+
+// Use in your own type definitions
+type MyParams = GetPaymentStateParameters & {
+  customField: string
+}
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Types" icon="code" href="/core/types">
+    Core type definitions used by actions
+  </Card>
+  <Card title="Config" icon="globe" href="/core/config">
+    Chain configuration and addresses
+  </Card>
+</CardGroup>

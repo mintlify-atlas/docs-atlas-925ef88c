@@ -1,0 +1,201 @@
+---
+title: "Deployment Presets"
+description: "Pre-configured operator deployment patterns"
+---
+
+## deployMarketplaceOperator
+
+Deploys a complete marketplace operator setup with all required contracts and conditions.
+
+```typescript
+async function deployMarketplaceOperator(
+  walletClient: WalletClient,
+  publicClient: PublicClient,
+  options: MarketplaceOperatorOptions
+): Promise<MarketplaceOperatorDeployment>
+```
+
+### Parameters
+
+- `walletClient` (WalletClient): The wallet client for signing transactions
+- `publicClient` (PublicClient): The public client for reading blockchain state
+- `options` (MarketplaceOperatorOptions):
+  - `chainId` (number): The chain ID to deploy on
+  - `feeRecipient` (Address): Address to receive operator fees
+  - `arbiter` (Address): Address of the arbiter for dispute resolution
+  - `escrowPeriodSeconds` (bigint): Escrow period duration in seconds
+  - `freezeDurationSeconds?` (bigint): Optional freeze duration (default: 0)
+  - `operatorFeeBps?` (bigint): Optional operator fee in basis points (default: 0)
+  - `authorizedCodehash?` (Hex): Optional authorized codehash for recording (default: no restriction)
+
+### Returns
+
+Promise\<MarketplaceOperatorDeployment\> containing:
+- `operatorAddress` (Address): The deployed operator contract address
+- `escrowPeriodAddress` (Address): The deployed escrow period contract address
+- `freezeAddress` (Address | null): The deployed freeze contract address (if freeze enabled)
+- `signatureConditionAddress` (Address): The deployed signature condition address
+- `refundInEscrowConditionAddress` (Address): The deployed refund condition address
+- `signatureRefundRequestAddress` (Address): The deployed signature refund request address
+- `feeCalculatorAddress` (Address | null): The deployed fee calculator address (if fees enabled)
+- `operatorConfig` (OperatorConfig): The final operator configuration
+- `deployments` (DeployResult[]): Array of all deployment results
+- `summary` (object):
+  - `newCount` (number): Number of newly deployed contracts
+  - `existingCount` (number): Number of existing contracts reused
+  - `txHashes` (Hash[]): Array of transaction hashes
+
+### Example
+
+```typescript
+import { deployMarketplaceOperator } from '@x402r/core/deploy'
+
+const deployment = await deployMarketplaceOperator(
+  walletClient,
+  publicClient,
+  {
+    chainId: 1,
+    feeRecipient: '0x...',
+    arbiter: '0x...',
+    escrowPeriodSeconds: 86400n, // 1 day
+    freezeDurationSeconds: 3600n, // 1 hour
+    operatorFeeBps: 100n, // 1%
+  }
+)
+
+console.log('Operator deployed at:', deployment.operatorAddress)
+console.log('Summary:', deployment.summary)
+```
+
+---
+
+## previewMarketplaceOperator
+
+Computes all contract addresses for a marketplace operator without deploying.
+
+```typescript
+async function previewMarketplaceOperator(
+  publicClient: PublicClient,
+  options: MarketplaceOperatorOptions
+): Promise<MarketplaceOperatorPreview>
+```
+
+### Parameters
+
+- `publicClient` (PublicClient): The public client for reading blockchain state
+- `options` (MarketplaceOperatorOptions): Same options as `deployMarketplaceOperator`
+
+### Returns
+
+Promise\<MarketplaceOperatorPreview\> containing:
+- `operatorAddress` (Address): The computed operator contract address
+- `escrowPeriodAddress` (Address): The computed escrow period contract address
+- `freezeAddress` (Address | null): The computed freeze contract address (if applicable)
+- `signatureConditionAddress` (Address): The computed signature condition address
+- `refundInEscrowConditionAddress` (Address): The computed refund condition address
+- `signatureRefundRequestAddress` (Address): The computed signature refund request address
+- `feeCalculatorAddress` (Address | null): The computed fee calculator address (if applicable)
+- `operatorConfig` (OperatorConfig): The final operator configuration
+
+### Example
+
+```typescript
+import { previewMarketplaceOperator } from '@x402r/core/deploy'
+
+const preview = await previewMarketplaceOperator(publicClient, {
+  chainId: 1,
+  feeRecipient: '0x...',
+  arbiter: '0x...',
+  escrowPeriodSeconds: 86400n,
+})
+
+console.log('Operator will be deployed at:', preview.operatorAddress)
+```
+
+---
+
+## deployArbiterSetup
+
+Deploys the signature condition and refund request contracts for an arbiter.
+
+```typescript
+async function deployArbiterSetup(
+  walletClient: WalletClient,
+  publicClient: PublicClient,
+  options: ArbiterSetupOptions
+): Promise<ArbiterSetupDeployment>
+```
+
+### Parameters
+
+- `walletClient` (WalletClient): The wallet client for signing transactions
+- `publicClient` (PublicClient): The public client for reading blockchain state
+- `options` (ArbiterSetupOptions):
+  - `chainId` (number): The chain ID to deploy on
+  - `arbiter` (Address): Address of the arbiter signer
+
+### Returns
+
+Promise\<ArbiterSetupDeployment\> containing:
+- `signatureConditionAddress` (Address): The deployed signature condition address
+- `signatureRefundRequestAddress` (Address): The deployed signature refund request address
+- `deployments` (DeployResult[]): Array of all deployment results
+- `summary` (object):
+  - `newCount` (number): Number of newly deployed contracts
+  - `existingCount` (number): Number of existing contracts reused
+  - `txHashes` (Hash[]): Array of transaction hashes
+
+### Example
+
+```typescript
+import { deployArbiterSetup } from '@x402r/core/deploy'
+
+const deployment = await deployArbiterSetup(
+  walletClient,
+  publicClient,
+  {
+    chainId: 1,
+    arbiter: '0x...',
+  }
+)
+
+console.log('Signature condition:', deployment.signatureConditionAddress)
+console.log('Refund request:', deployment.signatureRefundRequestAddress)
+```
+
+---
+
+## previewArbiterSetup
+
+Computes the addresses for arbiter setup contracts without deploying.
+
+```typescript
+async function previewArbiterSetup(
+  publicClient: PublicClient,
+  options: ArbiterSetupOptions
+): Promise<ArbiterSetupPreview>
+```
+
+### Parameters
+
+- `publicClient` (PublicClient): The public client for reading blockchain state
+- `options` (ArbiterSetupOptions): Same options as `deployArbiterSetup`
+
+### Returns
+
+Promise\<ArbiterSetupPreview\> containing:
+- `signatureConditionAddress` (Address): The computed signature condition address
+- `signatureRefundRequestAddress` (Address): The computed signature refund request address
+
+### Example
+
+```typescript
+import { previewArbiterSetup } from '@x402r/core/deploy'
+
+const preview = await previewArbiterSetup(publicClient, {
+  chainId: 1,
+  arbiter: '0x...',
+})
+
+console.log('Signature condition will be at:', preview.signatureConditionAddress)
+```

@@ -1,0 +1,150 @@
+---
+title: Installation
+description: Install and configure the x402r SDK in your project
+---
+
+## System Requirements
+
+Before installing the x402r SDK, ensure your environment meets these requirements:
+
+- **Node.js:** Version 22 or higher
+- **Package Manager:** npm, yarn, or pnpm
+
+## Install the SDK
+
+Install `@x402r/sdk` using your preferred package manager:
+
+<CodeGroup>
+
+```bash npm
+npm install @x402r/sdk
+```
+
+```bash yarn
+yarn add @x402r/sdk
+```
+
+```bash pnpm
+pnpm add @x402r/sdk
+```
+
+</CodeGroup>
+
+## Peer Dependencies
+
+The x402r SDK requires **viem** as a peer dependency for blockchain interactions:
+
+<CodeGroup>
+
+```bash npm
+npm install viem
+```
+
+```bash yarn
+yarn add viem
+```
+
+```bash pnpm
+pnpm add viem
+```
+
+</CodeGroup>
+
+<Info>
+  The SDK is built on viem ^2.46.3 or higher. It uses viem's `PublicClient` and `WalletClient` for all blockchain operations.
+</Info>
+
+## Package Structure
+
+The x402r ecosystem consists of three packages:
+
+### @x402r/sdk
+
+The main SDK package — **start here for most use cases**.
+
+**Includes:**
+- Client factory (`createX402r`)
+- Role-based presets (`createPayerClient`, `createMerchantClient`, `createArbiterClient`)
+- Action groups (payment, refund, evidence, operator, watch)
+- Plugin system for extensibility
+- Re-exports everything from `@x402r/core`
+
+**Install:**
+```bash
+pnpm add @x402r/sdk
+```
+
+### @x402r/core
+
+Low-level primitives for advanced use cases.
+
+**Includes:**
+- TypeScript types (`PaymentInfo`, `OperatorConfig`, etc.)
+- Contract ABIs and addresses
+- Raw action functions (read/write contract calls)
+- Chain configuration registry
+- Deploy utilities
+
+**When to use:** Custom client implementations or direct action function calls without the SDK client wrapper.
+
+**Install:**
+```bash
+pnpm add @x402r/core
+```
+
+<Note>
+  You don't need to install `@x402r/core` separately if you're using `@x402r/sdk` — the SDK re-exports all core functionality.
+</Note>
+
+### @x402r/helpers
+
+Payment option builder for x402 HTTP 402 workflows.
+
+**Includes:**
+- `refundable()` function to augment payment options with escrow fields
+- Integration helpers for x402 protocol flows
+
+**When to use:** Building HTTP 402 payment flows with x402r escrow support.
+
+**Install:**
+```bash
+pnpm add @x402r/helpers
+```
+
+## Verify Installation
+
+Confirm the SDK is installed correctly by importing the client factory:
+
+```typescript
+import { createX402r } from '@x402r/sdk'
+import { createPublicClient, createWalletClient, http } from 'viem'
+import { baseSepolia } from 'viem/chains'
+
+// Create viem clients
+const publicClient = createPublicClient({
+  chain: baseSepolia,
+  transport: http(),
+})
+
+const walletClient = createWalletClient({
+  chain: baseSepolia,
+  transport: http(),
+})
+
+// Create x402r client
+const x402r = createX402r({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x...',
+})
+
+console.log('x402r SDK ready!')
+```
+
+If the import succeeds without errors, you're ready to start building!
+
+## Next Steps
+
+<Card title="Quickstart" icon="rocket" href="/quickstart">
+  Build your first refundable payment with a complete working example
+</Card>

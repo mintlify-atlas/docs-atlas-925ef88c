@@ -1,0 +1,149 @@
+---
+title: "Payment Option Builder"
+description: "Add escrow fields to x402 HTTP payment options"
+---
+
+The `refundable()` function augments a payment option with the escrow `extra` fields required by x402r. Addresses and fee defaults come from the chain config for the option's `network`.
+
+## Installation
+
+```bash
+pnpm add @x402r/helpers
+```
+
+## Function Signature
+
+```typescript
+function refundable<T extends PaymentOption>(
+  option: T,
+  operatorAddress: `0x${string}`,
+  options?: RefundableOptions
+): T & { extra: EscrowExtra }
+```
+
+### Parameters
+
+<ParamField path="option" type="PaymentOption" required>
+  The base payment option to augment. Must include `scheme`, `network`, and optionally `price`, `payTo`, `asset`, etc.
+</ParamField>
+
+<ParamField path="operatorAddress" type="`0x${string}`" required>
+  The operator's Ethereum address that will manage the escrow.
+</ParamField>
+
+<ParamField path="options" type="RefundableOptions">
+  Optional overrides for escrow configuration.
+</ParamField>
+
+## RefundableOptions
+
+All fields are optional. When omitted, values are sourced from the chain config for the option's `network`.
+
+<ParamField path="escrowAddress" type="`0x${string}`">
+  Override the escrow contract address. Defaults to chain config's `authCaptureEscrow`.
+</ParamField>
+
+<ParamField path="tokenCollector" type="`0x${string}`">
+  Override the token collector address. Defaults to chain config's `tokenCollector`.
+</ParamField>
+
+<ParamField path="minFeeBps" type="number" default="0">
+  Minimum fee in basis points (0-10000). Must be ≤ `maxFeeBps`.
+</ParamField>
+
+<ParamField path="maxFeeBps" type="number" default="1000">
+  Maximum fee in basis points (0-10000).
+</ParamField>
+
+<ParamField path="settlementMethod" type="'authorize' | 'charge'" default="'authorize'">
+  Settlement method for the escrow payment.
+</ParamField>
+
+<ParamField path="postCaptureRefundDeadline" type="number">
+  Seconds after capture during which refunds are accepted. Must be positive. Sets `refundExpirySeconds` in the extra field.
+</ParamField>
+
+## Usage Examples
+
+### Basic Usage
+
+```typescript
+import { refundable } from '@x402r/helpers'
+
+const option = refundable(
+  { scheme: 'escrow', network: 'eip155:84532', price: '$0.01' },
+  '0xMyOperator…',
+)
+```
+
+### With Custom Fee Range
+
+```typescript
+const option = refundable(
+  { scheme: 'escrow', network: 'eip155:84532', price: '$0.01' },
+  '0xMyOperator…',
+  {
+    minFeeBps: 50,   // 0.5%
+    maxFeeBps: 500,  // 5%
+  }
+)
+```
+
+### With Refund Deadline
+
+```typescript
+const option = refundable(
+  { scheme: 'escrow', network: 'eip155:84532', price: '$0.01' },
+  '0xMyOperator…',
+  {
+    postCaptureRefundDeadline: 86400, // 24 hours
+  }
+)
+```
+
+### With Custom Addresses
+
+```typescript
+const option = refundable(
+  { scheme: 'escrow', network: 'eip155:84532', price: '$0.01' },
+  '0xMyOperator…',
+  {
+    escrowAddress: '0xCustomEscrow…',
+    tokenCollector: '0xCustomCollector…',
+  }
+)
+```
+
+### Charge Settlement Method
+
+```typescript
+const option = refundable(
+  { scheme: 'escrow', network: 'eip155:84532', price: '$0.01' },
+  '0xMyOperator…',
+  {
+    settlementMethod: 'charge',
+  }
+)
+```
+
+## Return Value
+
+Returns the original payment option augmented with an `extra` field containing:
+
+- `escrowAddress` - The escrow contract address
+- `operatorAddress` - The operator's address
+- `tokenCollector` - The token collector address
+- `minFeeBps` - Minimum fee in basis points
+- `maxFeeBps` - Maximum fee in basis points
+- `settlementMethod` - Settlement method ('authorize' or 'charge')
+- `refundExpirySeconds` - Unix timestamp for refund deadline (if `postCaptureRefundDeadline` was set)
+
+## Validation
+
+The function validates:
+
+- `minFeeBps` and `maxFeeBps` must be between 0 and 10,000
+- `minFeeBps` must be ≤ `maxFeeBps`
+- `postCaptureRefundDeadline` must be positive if provided
+
+Throws `ValidationError` if validation fails.

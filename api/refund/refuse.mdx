@@ -1,0 +1,112 @@
+---
+title: refuseRefundRequest
+description: Refuse a pending refund request
+---
+
+## Overview
+
+The `refuseRefundRequest` function allows an authorized party to refuse a pending refund request. This is similar to denial but may have different semantics or authorization requirements based on the contract implementation.
+
+## Signature
+
+```typescript
+async function refuseRefundRequest(
+  walletClient: WalletClient,
+  parameters: RefuseRefundRequestParameters
+): Promise<RefuseRefundRequestReturnType>
+```
+
+## Parameters
+
+<ParamField path="walletClient" type="WalletClient" required>
+  A viem wallet client with an active account to sign and submit the transaction.
+</ParamField>
+
+<ParamField path="parameters" type="RefuseRefundRequestParameters" required>
+  Configuration object containing the refusal details.
+
+  <ParamField path="parameters.contractAddress" type="Address" required>
+    The address of the SignatureRefundRequest contract.
+  </ParamField>
+
+  <ParamField path="parameters.paymentInfo" type="PaymentInfo" required>
+    The payment information object identifying the specific payment. This must match the refund request.
+  </ParamField>
+
+  <ParamField path="parameters.nonce" type="bigint" required>
+    The nonce of the refund request to refuse.
+  </ParamField>
+</ParamField>
+
+## Returns
+
+<ResponseField name="hash" type="Hash">
+  The transaction hash of the refusal transaction.
+</ResponseField>
+
+## Example
+
+```typescript
+import { refuseRefundRequest } from 'x402r'
+import { createWalletClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const walletClient = createWalletClient({
+  chain: mainnet,
+  transport: http(),
+  account: '0x...', // Authorized account
+})
+
+const paymentInfo = {
+  payer: '0x1234...',
+  receiver: '0x5678...',
+  operator: '0x9abc...',
+  token: '0xdef0...',
+  amount: 1000000n,
+  // ... other fields
+}
+
+const txHash = await refuseRefundRequest(walletClient, {
+  contractAddress: '0xContractAddress...',
+  paymentInfo,
+  nonce: 1n,
+})
+
+console.log('Refund request refused:', txHash)
+```
+
+## Notes
+
+- Only authorized parties can refuse refund requests
+- The request must be in `Pending` status to be refused
+- Once refused, the refund request status changes to `Refused`
+- A refused request cannot be reprocessed
+- The wallet client must have an active account configured
+- The contract function called is `refuse` on the SignatureRefundRequest contract
+
+## Refuse vs Deny
+
+While both `refuseRefundRequest` and `denyRefundRequest` reject a refund request, they may differ in:
+- Authorization requirements (who can refuse vs deny)
+- Business logic implications
+- Event emissions or logging
+- Contract-specific semantics
+
+Refer to your specific contract implementation to understand the distinction.
+
+## Error Handling
+
+Common errors include:
+- Request not found or already processed
+- Unauthorized refusal attempt (caller not authorized)
+- Request not in pending status
+- Invalid payment info or nonce
+- Missing or invalid account on wallet client
+- Contract execution failures
+
+## Related Functions
+
+- [requestRefund](/api/refund/request) - Submit a new refund request
+- [denyRefundRequest](/api/refund/deny) - Deny a refund request
+- [approveRefundWithSignature](/api/refund/approve) - Approve a refund request
+- [getRefundRequest](/api/refund/get-request) - Retrieve refund request details

@@ -1,0 +1,229 @@
+---
+title: 'Client Architecture'
+description: 'Creating and configuring the x402r SDK client'
+---
+
+## Creating the Client
+
+The x402r SDK uses `createX402r()` to build a fully-typed client instance with action groups organized by protocol domain.
+
+```typescript
+import { createX402r } from '@x402r/sdk'
+import { createPublicClient, createWalletClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const publicClient = createPublicClient({
+  chain: mainnet,
+  transport: http(),
+})
+
+const walletClient = createWalletClient({
+  chain: mainnet,
+  transport: http(),
+})
+
+const x402r = createX402r({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x…',
+})
+
+// Access action groups
+const amounts = await x402r.payment.getAmounts(paymentInfo)
+const txHash = await x402r.refund.request(paymentInfo, amount, nonce)
+```
+
+## Configuration Options
+
+The `X402rConfig` interface defines all available configuration parameters:
+
+### Required Parameters
+
+<ParamField path="publicClient" type="PublicClient" required>
+  Viem public client for read operations
+</ParamField>
+
+<ParamField path="operatorAddress" type="Address" required>
+  Address of the x402r operator contract
+</ParamField>
+
+### Chain Configuration
+
+Provide **one** of the following to specify the target chain:
+
+<ParamField path="chainId" type="number">
+  Numeric chain ID (e.g., `1` for Ethereum mainnet)
+</ParamField>
+
+<ParamField path="network" type="string">
+  Network identifier string (resolved via `fromNetworkId()`)
+</ParamField>
+
+<ParamField path="publicClient.chain" type="Chain">
+  If neither `chainId` nor `network` is provided, the chain is read from `publicClient.chain.id`
+</ParamField>
+
+<Warning>
+  If no chain identifier is provided through any method, `createX402r()` will throw:
+  ```
+  ValidationError: Unable to determine chain: provide chainId, network, or a publicClient with a chain
+  ```
+</Warning>
+
+### Write Operations
+
+<ParamField path="walletClient" type="WalletClient">
+  Optional wallet client for write operations. If omitted, only read-only methods are available.
+</ParamField>
+
+### Protocol Address Overrides
+
+These addresses are resolved from the chain config by default. Override them to use custom deployments:
+
+<ParamField path="refundRequestAddress" type="Address">
+  Custom `RefundRequest` contract address
+</ParamField>
+
+<ParamField path="refundRequestEvidenceAddress" type="Address">
+  Custom `RefundRequestEvidence` contract address
+</ParamField>
+
+### Optional Condition Plugins
+
+These addresses enable optional action groups for operator-specific condition contracts:
+
+<ParamField path="escrowPeriodAddress" type="Address">
+  Enables `x402r.escrow` action group when provided
+</ParamField>
+
+<ParamField path="freezeAddress" type="Address">
+  Enables `x402r.freeze` action group when provided
+</ParamField>
+
+## Client Architecture
+
+The client is built using a factory pattern that resolves configuration and creates action group namespaces:
+
+```typescript
+// From client.ts:42-67
+export function createX402r(config: X402rConfig): X402r {
+  const resolved = resolveConfig(config)
+
+  const base: Omit<X402r, 'extend'> = {
+    config: resolved,
+    payment: createPaymentActions(resolved),
+    escrow: resolved.escrowPeriodAddress
+      ? createEscrowActions(resolved, resolved.escrowPeriodAddress)
+      : undefined,
+    refund: resolved.refundRequestAddress
+      ? createRefundActions(resolved, resolved.refundRequestAddress)
+      : undefined,
+    evidence: createEvidenceActions(resolved),
+    freeze: resolved.freezeAddress
+      ? createFreezeActions(resolved, resolved.freezeAddress)
+      : undefined,
+    operator: createOperatorActions(resolved),
+    watch: createWatchActions(resolved),
+    canExecute: (slot, paymentInfo, amount) =>
+      canExecute(resolved, slot, paymentInfo, amount),
+  }
+
+  const client = base as X402r
+  ;(client as { extend: X402r['extend'] }).extend = buildExtend(client)
+  return client
+}
+```
+
+### Conditional Action Groups
+
+Action groups are conditionally included based on configuration:
+
+| Group | Availability | Condition |
+|-------|-------------|----------|
+| `payment` | Always | Core protocol |
+| `evidence` | Always | Core protocol |
+| `operator` | Always | Core protocol |
+| `watch` | Always | Core protocol |
+| `refund` | Conditional | Requires `refundRequestAddress` |
+| `escrow` | Conditional | Requires `escrowPeriodAddress` |
+| `freeze` | Conditional | Requires `freezeAddress` |
+
+<Note>
+  When an optional action group is not configured, its value is `undefined`. Always check for existence before calling methods:
+  
+  ```typescript
+  if (x402r.escrow) {
+    await x402r.escrow.isDuringEscrow(paymentInfo)
+  }
+  ```
+</Note>
+
+## Resolved Configuration
+
+The internal `resolveConfig()` function processes user input into a `ResolvedConfig` object:
+
+```typescript
+// From client.ts:73-90
+export function resolveConfig(config: X402rConfig): ResolvedConfig {
+  const chainId = resolveChainId(config)
+  const chainConfig = getChainConfig(chainId)
+  const refundRequestEvidenceAddress =
+    config.refundRequestEvidenceAddress ?? chainConfig.refundRequestEvidence
+
+  return {
+    publicClient: config.publicClient,
+    walletClient: config.walletClient,
+    operatorAddress: config.operatorAddress,
+    chainId,
+    chainConfig,
+    refundRequestAddress: config.refundRequestAddress ?? undefined,
+    refundRequestEvidenceAddress,
+    escrowPeriodAddress: config.escrowPeriodAddress,
+    freezeAddress: config.freezeAddress,
+  }
+}
+```
+
+### Chain Resolution Logic
+
+The `resolveChainId()` function tries these sources in order:
+
+1. Explicit `config.chainId`
+2. `config.network` (converted via `fromNetworkId()`)
+3. `config.publicClient.chain.id`
+
+If none are available, it throws a `ValidationError`.
+
+## Permission Checks
+
+The client includes a `canExecute()` helper for condition slot validation:
+
+```typescript
+const canRelease = await x402r.canExecute(
+  ConditionSlot.Release,
+  paymentInfo,
+  amount
+)
+
+if (canRelease) {
+  await x402r.payment.release(paymentInfo, amount)
+}
+```
+
+<Info>
+  Permission enforcement happens on-chain. The SDK provides `canExecute()` for pre-flight checks to improve UX, but ultimate authorization is validated by the operator contract.
+</Info>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Action Groups" icon="layer-group" href="/sdk/action-groups">
+    Explore all available action groups and their methods
+  </Card>
+  <Card title="Role Presets" icon="user-tag" href="/sdk/role-presets">
+    Use type-narrowed clients for specific roles
+  </Card>
+  <Card title="Extending" icon="puzzle-piece" href="/sdk/extending">
+    Add custom namespaces with .extend()
+  </Card>
+</CardGroup>

@@ -1,0 +1,139 @@
+---
+title: 'charge'
+description: 'Capture authorized funds from escrow to the receiver'
+---
+
+## Function Signature
+
+```typescript
+async function charge(
+  walletClient: WalletClient,
+  parameters: ChargeParameters
+): Promise<Hash>
+```
+
+## Description
+
+Captures previously authorized funds from the escrow contract and transfers them to the receiver. This action can only be executed after the escrow period has ended and requires the caller to have the appropriate permissions.
+
+The `charge` action finalizes the payment, making the funds no longer refundable through the standard escrow mechanism.
+
+## Parameters
+
+<ParamField path="walletClient" type="WalletClient" required>
+  Viem wallet client with an active account to sign and send the transaction
+</ParamField>
+
+<ParamField path="parameters" type="ChargeParameters" required>
+  Configuration object for capturing funds
+
+  <ParamField path="operatorAddress" type="Address" required>
+    Address of the payment operator contract
+  </ParamField>
+
+  <ParamField path="paymentInfo" type="PaymentInfo" required>
+    Payment information object matching the original authorization:
+    - `payer`: Address of the account that paid
+    - `receiver`: Address of the account receiving
+    - `token`: Address of the ERC20 token
+    - `startTime`: Timestamp when authorization began
+    - `escrowDuration`: Duration of the escrow period
+    - Additional fields as defined by the PaymentInfo type
+  </ParamField>
+
+  <ParamField path="amount" type="bigint" required>
+    Amount of tokens to charge (must not exceed capturable amount)
+  </ParamField>
+
+  <ParamField path="tokenCollector" type="Address" required>
+    Address of the token collector contract for the transfer
+  </ParamField>
+
+  <ParamField path="collectorData" type="Hex" required>
+    Encoded data to pass to the token collector
+  </ParamField>
+</ParamField>
+
+## Returns
+
+<ResponseField name="hash" type="Hash">
+  Transaction hash of the charge transaction
+</ResponseField>
+
+## Example
+
+```typescript
+import { charge } from '@x402r/core'
+import { createWalletClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const walletClient = createWalletClient({
+  chain: mainnet,
+  transport: http(),
+})
+
+const paymentInfo = {
+  payer: '0x...',
+  receiver: '0x...',
+  token: '0x...', // USDC address
+  startTime: 1234567890,
+  escrowDuration: 86400 * 7, // 7 days
+  // ... other required fields
+}
+
+// Wait for escrow period to end before charging
+const txHash = await charge(walletClient, {
+  operatorAddress: '0x...',
+  paymentInfo,
+  amount: 1000000n, // 1 USDC
+  tokenCollector: '0x...',
+  collectorData: '0x',
+})
+
+console.log('Charge transaction:', txHash)
+```
+
+## SDK Usage
+
+When using the x402r SDK client:
+
+```typescript
+import { createX402rClient } from '@x402r/sdk'
+
+const client = createX402rClient({
+  operatorAddress: '0x...',
+  chainId: 1,
+  walletClient,
+  publicClient,
+})
+
+const txHash = await client.payment.charge(
+  paymentInfo,
+  1000000n,
+  tokenCollectorAddress,
+  collectorData
+)
+```
+
+## Related Actions
+
+- [authorize](/api/payment/authorize) - Authorize a payment into escrow
+- [release](/api/payment/release) - Release funds during escrow period
+- [get-state](/api/payment/get-state) - Check if escrow period has ended
+- [get-amounts](/api/payment/get-amounts) - Get capturable amount
+- [refund-post-escrow](/api/payment/refund-post-escrow) - Refund after capture
+
+## Requirements
+
+- Escrow period must have ended
+- Sufficient capturable amount must be available
+- Caller must have permission to charge (typically the receiver or operator)
+- Payment must not be frozen
+
+## Error Handling
+
+This function will throw an error if:
+- Wallet client does not have an active account
+- Escrow period has not ended
+- Requested amount exceeds capturable balance
+- Contract call fails or transaction reverts

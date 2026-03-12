@@ -1,0 +1,276 @@
+---
+title: 'Configuration'
+description: 'Chain registry, protocol addresses, and configuration utilities'
+---
+
+## Overview
+
+The config module provides a unified registry of protocol deployments across supported chains, including factory addresses, condition singletons, and core protocol contracts.
+
+## Supported Chains
+
+The x402r protocol is deployed on the following chains:
+
+### Mainnets
+
+- **Ethereum** (Chain ID: `1`)
+- **Base** (Chain ID: `8453`)
+- **Polygon** (Chain ID: `137`)
+- **Arbitrum One** (Chain ID: `42161`)
+- **Optimism** (Chain ID: `10`)
+- **Celo** (Chain ID: `42220`)
+- **Avalanche C-Chain** (Chain ID: `43114`)
+- **Monad** (Chain ID: `143`)
+- **Linea** (Chain ID: `59144`)
+
+### Testnets
+
+- **Base Sepolia** (Chain ID: `84532`)
+- **Ethereum Sepolia** (Chain ID: `11155111`)
+
+## Chain Configuration
+
+### getChainConfig
+
+Get the complete configuration for a supported chain.
+
+```ts
+import { getChainConfig } from '@x402r/core/config'
+
+const config = getChainConfig(8453) // Base mainnet
+
+console.log(config.name) // "Base"
+console.log(config.usdc) // "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+console.log(config.authCaptureEscrow) // "0xe050bB89eD43BB02d71343063824614A7fb80B77"
+```
+
+**Type:**
+```ts
+function getChainConfig(chainId: number): X402rChainConfig
+```
+
+**Throws:** `ConfigError` if chain is not supported
+
+### isSupportedChain
+
+Check if a chain ID is supported.
+
+```ts
+import { isSupportedChain } from '@x402r/core/config'
+
+if (isSupportedChain(8453)) {
+  // Chain is supported
+}
+```
+
+**Type:**
+```ts
+function isSupportedChain(chainId: number): chainId is SupportedChainId
+```
+
+## Protocol Addresses
+
+All protocol contracts are deployed using CREATE3 for unified addresses across chains.
+
+### Core Protocol Contracts
+
+```ts
+interface X402rChainConfig {
+  authCaptureEscrow: Address      // Main escrow contract
+  tokenCollector: Address          // Token collection contract
+  protocolFeeConfig: Address       // Protocol fee configuration
+  usdcTvlLimit: Address           // TVL limit checker
+  arbiterRegistry: Address         // Arbiter registry
+  receiverRefundCollector: Address // Receiver refund collector
+  refundRequestEvidence: Address   // Evidence submission contract
+  usdc: Address                    // USDC token address (chain-specific)
+}
+```
+
+### Factory Addresses
+
+```ts
+import { getFactoryAddresses } from '@x402r/core/config'
+
+const factories = getFactoryAddresses(8453)
+
+console.log(factories.paymentOperator)
+console.log(factories.escrowPeriod)
+console.log(factories.freeze)
+console.log(factories.staticFeeCalculator)
+```
+
+**Available Factories:**
+```ts
+interface FactoryAddresses {
+  paymentOperator: Address
+  escrowPeriod: Address
+  freeze: Address
+  staticFeeCalculator: Address
+  staticAddressCondition: Address
+  andCondition: Address
+  orCondition: Address
+  notCondition: Address
+  recorderCombinator: Address
+  signatureCondition: Address
+  signatureRefundRequest: Address
+}
+```
+
+### Get Specific Factory
+
+```ts
+import { getFactoryAddress } from '@x402r/core/config'
+
+const factory = getFactoryAddress(8453, 'paymentOperator')
+```
+
+### Condition Singletons
+
+```ts
+import { getConditionSingletons } from '@x402r/core/config'
+
+const conditions = getConditionSingletons(8453)
+
+console.log(conditions.payer)      // Payer condition singleton
+console.log(conditions.receiver)   // Receiver condition singleton
+console.log(conditions.alwaysTrue) // Always-true condition singleton
+```
+
+**Type:**
+```ts
+interface ConditionSingletonAddresses {
+  payer: Address
+  receiver: Address
+  alwaysTrue: Address
+}
+```
+
+## Utility Functions
+
+### hasFactories
+
+Check if factories are deployed on a chain.
+
+```ts
+import { hasFactories } from '@x402r/core/config'
+
+if (hasFactories(8453)) {
+  // Can deploy custom operators on this chain
+}
+```
+
+### hasConditionSingletons
+
+Check if condition singletons are deployed on a chain.
+
+```ts
+import { hasConditionSingletons } from '@x402r/core/config'
+
+if (hasConditionSingletons(8453)) {
+  // Can use condition singletons
+}
+```
+
+### CAIP-2 Bridge
+
+Convert between chain IDs and CAIP-2 network identifiers.
+
+```ts
+import { toNetworkId, fromNetworkId } from '@x402r/core/config'
+
+const networkId = toNetworkId(8453) // "eip155:8453"
+const chainId = fromNetworkId('eip155:8453') // 8453
+```
+
+## Chain Registry
+
+Access the full chain registry:
+
+```ts
+import { x402rChains, supportedChainIds } from '@x402r/core/config'
+
+// Get all supported chain IDs
+console.log(supportedChainIds) // [1, 8453, 137, ...]
+
+// Access specific chain config
+const baseConfig = x402rChains[8453]
+```
+
+## Unified Addresses
+
+Most protocol addresses are identical across all chains (deployed via CREATE3):
+
+```ts
+// These addresses are the same on every chain:
+const UNIFIED_ADDRESSES = {
+  authCaptureEscrow: '0xe050bB89eD43BB02d71343063824614A7fb80B77',
+  tokenCollector: '0xcE66Ab399EDA513BD12760b6427C87D6602344a7',
+  protocolFeeConfig: '0x7e868A42a458fa2443b6259419aA6A8a161E08c8',
+  // ... and more
+}
+
+// Only USDC address varies by chain (chain-specific deployment)
+```
+
+## Error Handling
+
+```ts
+import { getChainConfig } from '@x402r/core/config'
+import { ConfigError } from '@x402r/core/errors'
+
+try {
+  const config = getChainConfig(999999)
+} catch (error) {
+  if (error instanceof ConfigError) {
+    console.error(error.message)
+    // "Chain 999999 is not supported"
+    console.error(error.metaMessages)
+    // ["Supported chains: 1, 8453, 137, ..."]
+  }
+}
+```
+
+## Usage Example
+
+```ts
+import { getChainConfig, isSupportedChain } from '@x402r/core/config'
+import { createPublicClient, http } from 'viem'
+import { base } from 'viem/chains'
+
+const chainId = 8453
+
+if (!isSupportedChain(chainId)) {
+  throw new Error('Unsupported chain')
+}
+
+const config = getChainConfig(chainId)
+
+const publicClient = createPublicClient({
+  chain: base,
+  transport: http(),
+})
+
+// Use protocol addresses
+import { getPaymentState } from '@x402r/core/actions'
+
+const [isAuthorized, authorizedAmount, chargedAmount] = await getPaymentState(
+  publicClient,
+  {
+    operatorAddress,
+    chainId,
+    paymentInfo,
+  }
+)
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Deploy" icon="rocket" href="/core/deploy">
+    Use factory addresses to deploy operators
+  </Card>
+  <Card title="Actions" icon="bolt" href="/core/actions">
+    Interact with protocol contracts
+  </Card>
+</CardGroup>

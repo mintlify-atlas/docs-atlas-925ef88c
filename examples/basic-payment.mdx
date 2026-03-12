@@ -1,0 +1,218 @@
+---
+title: Basic Payment Flow
+description: Complete example of authorizing, charging, and releasing a payment
+---
+
+This example demonstrates the fundamental payment lifecycle: authorize funds, charge the customer, and release payment to the merchant.
+
+## Overview
+
+A typical payment flow involves three stages:
+
+1. **Authorize** — Lock funds in escrow without transferring them
+2. **Charge** — Deduct the payment amount from the authorized escrow
+3. **Release** — Transfer funds to the merchant's account
+
+## Setup
+
+First, create an x402r client instance:
+
+```ts
+import { createPublicClient, createWalletClient, http } from 'viem'
+import { baseSepolia } from 'viem/chains'
+import { createX402r } from '@x402r/sdk'
+
+const publicClient = createPublicClient({ 
+  chain: baseSepolia, 
+  transport: http() 
+})
+
+const walletClient = createWalletClient({ 
+  chain: baseSepolia, 
+  transport: http(),
+  account: '0x...' // Your account
+})
+
+const x402r = createX402r({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x...', // Your operator contract address
+})
+```
+
+## Payment Info
+
+Define the payment parameters using the `PaymentInfo` struct:
+
+```ts
+import type { PaymentInfo } from '@x402r/sdk'
+
+const paymentInfo: PaymentInfo = {
+  operator: '0x1234567890123456789012345678901234567890',
+  payer: '0x2345678901234567890123456789012345678901',
+  receiver: '0x3456789012345678901234567890123456789012',
+  token: '0x4567890123456789012345678901234567890123', // ERC-20 token address
+  maxAmount: 1000000n, // Maximum amount in token units
+  preApprovalExpiry: 1735689600, // Unix timestamp
+  authorizationExpiry: 1735689600, // Unix timestamp
+  refundExpiry: 1738368000, // Unix timestamp
+  minFeeBps: 0, // Minimum fee in basis points
+  maxFeeBps: 500, // Maximum fee (5.00%)
+  feeReceiver: '0x5678901234567890123456789012345678901234',
+  salt: 0x123456789abcdefn, // Unique identifier
+}
+```
+
+## Step 1: Authorize Payment
+
+Authorize funds to be held in escrow:
+
+```ts
+const amount = 1000000n // Amount to authorize
+const tokenCollector = '0x...' // Token collector contract
+const collectorData = '0x' // Additional data for collector
+
+const authTxHash = await x402r.payment.authorize(
+  paymentInfo,
+  amount,
+  tokenCollector,
+  collectorData
+)
+
+console.log('Authorization tx:', authTxHash)
+```
+
+After authorization, check the payment state:
+
+```ts
+const [isAuthorized, authorizedAmount, chargedAmount] = await x402r.payment.getState(paymentInfo)
+
+console.log('Authorized:', isAuthorized)
+console.log('Authorized amount:', authorizedAmount)
+console.log('Charged amount:', chargedAmount)
+```
+
+## Step 2: Charge Payment
+
+Deduct the payment from the authorized escrow:
+
+```ts
+const chargeAmount = 800000n // Charge 80% of authorized amount
+
+const chargeTxHash = await x402r.payment.charge(
+  paymentInfo,
+  chargeAmount,
+  tokenCollector,
+  collectorData
+)
+
+console.log('Charge tx:', chargeTxHash)
+```
+
+## Step 3: Release Payment
+
+Release the charged funds to the receiver:
+
+```ts
+const releaseAmount = 800000n // Release the charged amount
+
+const releaseTxHash = await x402r.payment.release(
+  paymentInfo,
+  releaseAmount
+)
+
+console.log('Release tx:', releaseTxHash)
+```
+
+## Check Payment Amounts
+
+Retrieve detailed payment amounts at any time:
+
+```ts
+const amounts = await x402r.payment.getAmounts(paymentInfo)
+
+console.log('Authorized:', amounts.authorizedAmount)
+console.log('Charged:', amounts.chargedAmount)
+console.log('Released:', amounts.releasedAmount)
+console.log('Refunded:', amounts.refundedAmount)
+console.log('Refundable:', amounts.refundableAmount)
+```
+
+## Complete Example
+
+```ts
+import { createPublicClient, createWalletClient, http } from 'viem'
+import { baseSepolia } from 'viem/chains'
+import { createX402r } from '@x402r/sdk'
+import type { PaymentInfo } from '@x402r/sdk'
+
+// Setup clients
+const publicClient = createPublicClient({ chain: baseSepolia, transport: http() })
+const walletClient = createWalletClient({ 
+  chain: baseSepolia, 
+  transport: http(),
+  account: '0x...'
+})
+
+const x402r = createX402r({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x...',
+})
+
+// Define payment
+const paymentInfo: PaymentInfo = {
+  operator: '0x...',
+  payer: '0x...',
+  receiver: '0x...',
+  token: '0x...', // USDC or other ERC-20
+  maxAmount: 1000000n,
+  preApprovalExpiry: Math.floor(Date.now() / 1000) + 3600, // 1 hour
+  authorizationExpiry: Math.floor(Date.now() / 1000) + 3600,
+  refundExpiry: Math.floor(Date.now() / 1000) + 86400, // 24 hours
+  minFeeBps: 0,
+  maxFeeBps: 500,
+  feeReceiver: '0x...',
+  salt: BigInt(Math.floor(Math.random() * 1000000)),
+}
+
+const tokenCollector = '0x...' // Your token collector
+const collectorData = '0x'
+
+// Execute payment flow
+async function executePayment() {
+  // 1. Authorize
+  const authTx = await x402r.payment.authorize(
+    paymentInfo, 
+    1000000n, 
+    tokenCollector, 
+    collectorData
+  )
+  console.log('Authorized:', authTx)
+  
+  // 2. Charge
+  const chargeTx = await x402r.payment.charge(
+    paymentInfo, 
+    1000000n, 
+    tokenCollector, 
+    collectorData
+  )
+  console.log('Charged:', chargeTx)
+  
+  // 3. Release
+  const releaseTx = await x402r.payment.release(paymentInfo, 1000000n)
+  console.log('Released:', releaseTx)
+  
+  // Check final state
+  const amounts = await x402r.payment.getAmounts(paymentInfo)
+  console.log('Final amounts:', amounts)
+}
+
+executePayment().catch(console.error)
+```
+
+## Next Steps
+
+- Learn about [refund flows](/examples/refund-flow)
+- Explore [custom extensions](/examples/custom-extensions)
+- Review [Payment Actions API](/api-reference/payment)

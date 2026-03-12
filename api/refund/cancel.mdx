@@ -1,0 +1,99 @@
+---
+title: cancelRefundRequest
+description: Cancel a pending refund request
+---
+
+## Overview
+
+The `cancelRefundRequest` function allows the requester to cancel a previously submitted refund request that is still in pending status.
+
+## Signature
+
+```typescript
+async function cancelRefundRequest(
+  walletClient: WalletClient,
+  parameters: CancelRefundRequestParameters
+): Promise<CancelRefundRequestReturnType>
+```
+
+## Parameters
+
+<ParamField path="walletClient" type="WalletClient" required>
+  A viem wallet client with an active account to sign and submit the transaction.
+</ParamField>
+
+<ParamField path="parameters" type="CancelRefundRequestParameters" required>
+  Configuration object containing the cancellation details.
+
+  <ParamField path="parameters.contractAddress" type="Address" required>
+    The address of the SignatureRefundRequest contract.
+  </ParamField>
+
+  <ParamField path="parameters.paymentInfo" type="PaymentInfo" required>
+    The payment information object identifying the specific payment. This must match the original refund request.
+  </ParamField>
+
+  <ParamField path="parameters.nonce" type="bigint" required>
+    The nonce of the refund request to cancel. This must match the nonce used when creating the request.
+  </ParamField>
+</ParamField>
+
+## Returns
+
+<ResponseField name="hash" type="Hash">
+  The transaction hash of the cancellation transaction.
+</ResponseField>
+
+## Example
+
+```typescript
+import { cancelRefundRequest } from 'x402r'
+import { createWalletClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const walletClient = createWalletClient({
+  chain: mainnet,
+  transport: http(),
+  account: '0x...', // Your account
+})
+
+const paymentInfo = {
+  payer: '0x1234...',
+  receiver: '0x5678...',
+  operator: '0x9abc...',
+  token: '0xdef0...',
+  amount: 1000000n,
+  // ... other fields
+}
+
+const txHash = await cancelRefundRequest(walletClient, {
+  contractAddress: '0xContractAddress...',
+  paymentInfo,
+  nonce: 1n, // Same nonce as the original request
+})
+
+console.log('Refund request cancelled:', txHash)
+```
+
+## Notes
+
+- Only the original requester can cancel their refund request
+- The request must be in `Pending` status to be cancelled
+- Once cancelled, the refund request status changes to `Cancelled`
+- The same nonce cannot be reused for a new refund request
+- The wallet client must have an active account configured
+
+## Error Handling
+
+Common errors include:
+- Request not found or already processed
+- Unauthorized cancellation attempt (not the original requester)
+- Request not in pending status
+- Invalid payment info or nonce
+- Missing or invalid account on wallet client
+
+## Related Functions
+
+- [requestRefund](/api/refund/request) - Submit a new refund request
+- [getRefundRequest](/api/refund/get-request) - Retrieve refund request details
+- [getRefundRequestStatus](/api/refund/get-status) - Check the status of a refund request

@@ -1,122 +1,142 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "x402r SDK",
+  "theme": "palm",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#27bb6e",
+    "light": "#138745",
+    "dark": "#2e7dbc"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "https://media.brand.dev/b5125fe7-4bf2-4a46-b227-a9796da20956.png",
+  "logo": {
+    "light": "https://media.brand.dev/b5125fe7-4bf2-4a46-b227-a9796da20956.png",
+    "dark": "https://media.brand.dev/b67e9d6d-d275-4a19-a31f-1bb8053a2f5c.png"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/BackTrackCo/x402r-sdk"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/BackTrackCo/x402r-sdk"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "installation",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "SDK Guide",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "sdk/client",
+              "sdk/action-groups",
+              "sdk/role-presets",
+              "sdk/extending"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Core API",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "core/overview",
+              "core/actions",
+              "core/types",
+              "core/config",
+              "core/payment-utils",
+              "core/deploy"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Helpers",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "helpers/refundable"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/basic-payment",
+              "examples/refund-flow",
+              "examples/custom-extensions"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Payment Actions",
             "pages": [
-              "api-reference/introduction"
+              "api/payment/authorize",
+              "api/payment/charge",
+              "api/payment/release",
+              "api/payment/refund-in-escrow",
+              "api/payment/refund-post-escrow",
+              "api/payment/get-state",
+              "api/payment/get-amounts"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Refund Actions",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/refund/request",
+              "api/refund/cancel",
+              "api/refund/deny",
+              "api/refund/refuse",
+              "api/refund/approve"
+            ]
+          },
+          {
+            "group": "Evidence Actions",
+            "pages": [
+              "api/evidence/submit",
+              "api/evidence/get",
+              "api/evidence/get-batch"
+            ]
+          },
+          {
+            "group": "Operator Actions",
+            "pages": [
+              "api/operator/get-config",
+              "api/operator/calculate-fees",
+              "api/operator/distribute-fees"
+            ]
+          },
+          {
+            "group": "Deploy Functions",
+            "pages": [
+              "api/deploy/operator",
+              "api/deploy/conditions",
+              "api/deploy/presets"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Resources",
+            "pages": [
+              "reference/chains",
+              "reference/errors",
+              "reference/contributing",
+              "reference/changelog"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

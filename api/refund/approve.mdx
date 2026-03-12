@@ -1,0 +1,155 @@
+---
+title: approveRefundWithSignature
+description: Approve a refund request using a cryptographic signature
+---
+
+## Overview
+
+The `approveRefundWithSignature` function approves a pending refund request using a cryptographic signature. This allows for off-chain authorization with on-chain execution, enabling gas-efficient and flexible approval workflows.
+
+## Signature
+
+```typescript
+async function approveRefundWithSignature(
+  walletClient: WalletClient,
+  parameters: ApproveRefundWithSignatureParameters
+): Promise<ApproveRefundWithSignatureReturnType>
+```
+
+## Parameters
+
+<ParamField path="walletClient" type="WalletClient" required>
+  A viem wallet client with an active account to sign and submit the transaction.
+</ParamField>
+
+<ParamField path="parameters" type="ApproveRefundWithSignatureParameters" required>
+  Configuration object containing the approval details.
+
+  <ParamField path="parameters.contractAddress" type="Address" required>
+    The address of the SignatureRefundRequest contract.
+  </ParamField>
+
+  <ParamField path="parameters.paymentInfo" type="PaymentInfo" required>
+    The payment information object identifying the specific payment. This must match the refund request.
+  </ParamField>
+
+  <ParamField path="parameters.nonce" type="bigint" required>
+    The nonce of the refund request to approve.
+  </ParamField>
+
+  <ParamField path="parameters.amount" type="bigint" required>
+    The amount being approved for refund (in token's smallest unit). This can be different from the requested amount to approve a partial refund.
+  </ParamField>
+
+  <ParamField path="parameters.expiry" type="number" required>
+    The Unix timestamp (in seconds) when the signature expires. After this time, the signature is no longer valid.
+  </ParamField>
+
+  <ParamField path="parameters.signature" type="Hex" required>
+    The cryptographic signature authorizing the refund. This is typically created by the receiver or operator off-chain.
+  </ParamField>
+</ParamField>
+
+## Returns
+
+<ResponseField name="hash" type="Hash">
+  The transaction hash of the approval transaction.
+</ResponseField>
+
+## Example
+
+```typescript
+import { approveRefundWithSignature } from 'x402r'
+import { createWalletClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const walletClient = createWalletClient({
+  chain: mainnet,
+  transport: http(),
+  account: '0x...', // Account submitting the transaction
+})
+
+const paymentInfo = {
+  payer: '0x1234...',
+  receiver: '0x5678...',
+  operator: '0x9abc...',
+  token: '0xdef0...',
+  amount: 1000000n,
+  // ... other fields
+}
+
+// Signature obtained from authorized signer (receiver/operator)
+const signature = '0x...' // EIP-712 signature
+
+const txHash = await approveRefundWithSignature(walletClient, {
+  contractAddress: '0xContractAddress...',
+  paymentInfo,
+  nonce: 1n,
+  amount: 500000n, // Approve partial refund
+  expiry: Math.floor(Date.now() / 1000) + 3600, // Valid for 1 hour
+  signature,
+})
+
+console.log('Refund approved with signature:', txHash)
+```
+
+## Signature Generation
+
+The signature must be generated according to EIP-712 structured data signing. The authorizing party (typically receiver or operator) creates the signature off-chain:
+
+```typescript
+import { signTypedData } from 'viem'
+
+// This is typically done by the receiver/operator
+const signature = await walletClient.signTypedData({
+  domain: {
+    name: 'SignatureRefundRequest',
+    version: '1',
+    chainId: 1,
+    verifyingContract: contractAddress,
+  },
+  types: {
+    RefundApproval: [
+      { name: 'paymentInfo', type: 'PaymentInfo' },
+      { name: 'nonce', type: 'uint256' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'expiry', type: 'uint256' },
+    ],
+  },
+  primaryType: 'RefundApproval',
+  message: {
+    paymentInfo,
+    nonce: 1n,
+    amount: 500000n,
+    expiry: expiryTimestamp,
+  },
+})
+```
+
+## Notes
+
+- The signature must be created by an authorized party (receiver or operator)
+- Any account can submit the transaction with a valid signature (gasless transactions)
+- The signature expires after the specified expiry timestamp
+- The approved amount can differ from the requested amount (partial approvals)
+- Once approved, the refund request status changes to `Approved`
+- The wallet client must have an active account configured
+- The contract function called is `approveWithSignature`
+
+## Error Handling
+
+Common errors include:
+- Invalid or expired signature
+- Request not found or already processed
+- Request not in pending status
+- Signature verification failure
+- Invalid payment info or nonce
+- Missing or invalid account on wallet client
+- Contract execution failures
+
+## Related Functions
+
+- [requestRefund](/api/refund/request) - Submit a new refund request
+- [denyRefundRequest](/api/refund/deny) - Deny a refund request
+- [refuseRefundRequest](/api/refund/refuse) - Refuse a refund request
+- [getRefundRequest](/api/refund/get-request) - Retrieve refund request details

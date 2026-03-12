@@ -1,0 +1,191 @@
+---
+title: 'getPaymentState'
+description: 'Query the current state of a payment in the escrow system'
+---
+
+## Function Signature
+
+```typescript
+async function getPaymentState(
+  publicClient: PublicClient,
+  parameters: GetPaymentStateParameters
+): Promise<GetPaymentStateReturnType>
+```
+
+## Description
+
+Queries the blockchain to retrieve the current state of a payment. This read-only function returns information about whether payment has been collected, and the current capturable and refundable amounts.
+
+This is a view function that does not require a wallet or gas fees.
+
+## Parameters
+
+<ParamField path="publicClient" type="PublicClient" required>
+  Viem public client for reading blockchain state
+</ParamField>
+
+<ParamField path="parameters" type="GetPaymentStateParameters" required>
+  Configuration object for the query
+
+  <ParamField path="operatorAddress" type="Address" required>
+    Address of the payment operator contract
+  </ParamField>
+
+  <ParamField path="chainId" type="number" required>
+    Chain ID where the payment exists (e.g., 1 for Ethereum mainnet)
+  </ParamField>
+
+  <ParamField path="paymentInfo" type="PaymentInfo" required>
+    Payment information object:
+    - `payer`: Address of the account that paid
+    - `receiver`: Address of the account receiving
+    - `token`: Address of the ERC20 token
+    - `startTime`: Timestamp when authorization began
+    - `escrowDuration`: Duration of the escrow period
+    - Additional fields as defined by the PaymentInfo type
+  </ParamField>
+</ParamField>
+
+## Returns
+
+<ResponseField name="state" type="readonly [boolean, bigint, bigint]">
+  Tuple containing the payment state:
+
+  <ResponseField name="[0] hasCollectedPayment" type="boolean">
+    Whether any payment has been collected into escrow for this payment info
+  </ResponseField>
+
+  <ResponseField name="[1] capturableAmount" type="bigint">
+    Amount of tokens that can be captured/released to the receiver
+  </ResponseField>
+
+  <ResponseField name="[2] refundableAmount" type="bigint">
+    Amount of tokens that can be refunded to the payer
+  </ResponseField>
+</ResponseField>
+
+## Example
+
+```typescript
+import { getPaymentState } from '@x402r/core'
+import { createPublicClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const publicClient = createPublicClient({
+  chain: mainnet,
+  transport: http(),
+})
+
+const paymentInfo = {
+  payer: '0x...',
+  receiver: '0x...',
+  token: '0x...', // USDC address
+  startTime: 1234567890,
+  escrowDuration: 86400 * 7, // 7 days
+  // ... other required fields
+}
+
+const [hasCollected, capturable, refundable] = await getPaymentState(
+  publicClient,
+  {
+    operatorAddress: '0x...',
+    chainId: 1,
+    paymentInfo,
+  }
+)
+
+console.log('Payment collected:', hasCollected)
+console.log('Capturable amount:', capturable.toString())
+console.log('Refundable amount:', refundable.toString())
+```
+
+## SDK Usage
+
+When using the x402r SDK client:
+
+```typescript
+import { createX402rClient } from '@x402r/sdk'
+
+const client = createX402rClient({
+  operatorAddress: '0x...',
+  chainId: 1,
+  publicClient,
+})
+
+const [hasCollected, capturable, refundable] = await client.payment.getState(
+  paymentInfo
+)
+```
+
+## Understanding the Response
+
+### hasCollectedPayment
+
+- `true`: Payment has been authorized and funds are in escrow
+- `false`: No payment has been collected yet
+
+### capturableAmount
+
+Represents tokens that can be transferred to the receiver:
+- Includes authorized funds that haven't been refunded
+- Decreases when funds are charged, released, or refunded
+- Can be partially captured over multiple transactions
+
+### refundableAmount
+
+Represents tokens that can be returned to the payer:
+- Equal to capturable amount during escrow period
+- Typically zero after escrow period ends (unless configured otherwise)
+- Decreases as funds are captured or refunded
+
+## Common Patterns
+
+### Check if payment exists
+
+```typescript
+const [hasCollected] = await client.payment.getState(paymentInfo)
+
+if (!hasCollected) {
+  console.log('No payment found')
+}
+```
+
+### Check if escrow period has ended
+
+```typescript
+const [hasCollected, capturable, refundable] = await client.payment.getState(paymentInfo)
+
+const now = Math.floor(Date.now() / 1000)
+const escrowEnded = now > paymentInfo.startTime + paymentInfo.escrowDuration
+
+console.log('Escrow ended:', escrowEnded)
+console.log('Can still refund:', refundable > 0n)
+```
+
+### Validate before action
+
+```typescript
+const [, capturable] = await client.payment.getState(paymentInfo)
+
+if (capturable >= amountToCharge) {
+  await client.payment.charge(paymentInfo, amountToCharge, collector, data)
+} else {
+  console.log('Insufficient capturable amount')
+}
+```
+
+## Related Actions
+
+- [get-amounts](/api/payment/get-amounts) - Get amounts in a structured object
+- [authorize](/api/payment/authorize) - Authorize payment to change state
+- [charge](/api/payment/charge) - Capture funds (reduces capturable amount)
+- [release](/api/payment/release) - Release funds (reduces capturable amount)
+- [refund-in-escrow](/api/payment/refund-in-escrow) - Refund (reduces both amounts)
+
+## Performance Note
+
+This function makes two contract calls:
+1. Retrieves the escrow contract address from the operator
+2. Queries the payment state from the escrow contract
+
+Consider caching the escrow address if making multiple queries.

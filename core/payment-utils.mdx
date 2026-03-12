@@ -1,0 +1,292 @@
+---
+title: 'Payment Utilities'
+description: 'Hash, validate, and serialize PaymentInfo structures'
+---
+
+## Overview
+
+The payment utilities module provides functions for working with `PaymentInfo` structures, including cryptographic hashing, validation, and serialization.
+
+## computePaymentInfoHash
+
+Compute the unique hash for a payment. This hash is used on-chain to identify payments.
+
+```ts
+import { computePaymentInfoHash } from '@x402r/core/payment'
+import type { PaymentInfo } from '@x402r/core/types'
+
+const hash = computePaymentInfoHash(
+  8453,              // chainId
+  escrowAddress,     // escrow contract address
+  paymentInfo        // PaymentInfo struct
+)
+
+console.log(hash) // "0x..."
+```
+
+**Type:**
+```ts
+function computePaymentInfoHash(
+  chainId: number,
+  escrowAddress: `0x${string}`,
+  paymentInfo: PaymentInfo,
+): `0x${string}`
+```
+
+**Algorithm:**
+
+Matches the Solidity implementation:
+```solidity
+bytes32 paymentInfoHash = keccak256(abi.encode(PAYMENT_INFO_TYPEHASH, paymentInfo));
+return keccak256(abi.encode(block.chainid, address(this), paymentInfoHash));
+```
+
+**Steps:**
+1. Encode `PAYMENT_INFO_TYPEHASH` + all `PaymentInfo` fields
+2. Hash the encoded data to get `paymentInfoHash`
+3. Encode `chainId`, `escrowAddress`, and `paymentInfoHash`
+4. Hash the final encoding to get the payment hash
+
+## computeEscrowNonce
+
+Compute the ERC-3009 nonce for a payment. This is the same as `computePaymentInfoHash` but with `payer = address(0)`.
+
+```ts
+import { computeEscrowNonce } from '@x402r/core/payment'
+
+const nonce = computeEscrowNonce(
+  8453,
+  escrowAddress,
+  paymentInfo
+)
+```
+
+**Type:**
+```ts
+function computeEscrowNonce(
+  chainId: number,
+  escrowAddress: `0x${string}`,
+  paymentInfo: PaymentInfo,
+): `0x${string}`
+```
+
+**Purpose:** Used for payer-agnostic payments where the payer is determined at authorization time.
+
+## validatePaymentInfo
+
+Validate a `PaymentInfo` struct before use. Throws `ValidationError` on first invalid field.
+
+```ts
+import { validatePaymentInfo } from '@x402r/core/payment'
+import { ValidationError } from '@x402r/core/errors'
+import type { PaymentInfo } from '@x402r/core/types'
+
+const paymentInfo: PaymentInfo = {
+  operator: '0x...',
+  payer: '0x...',
+  receiver: '0x...',
+  token: '0x...',
+  maxAmount: 1000000n,
+  preApprovalExpiry: 0,
+  authorizationExpiry: Math.floor(Date.now() / 1000) + 3600,
+  refundExpiry: 0,
+  minFeeBps: 0,
+  maxFeeBps: 500,
+  feeReceiver: '0x...',
+  salt: 0n,
+}
+
+try {
+  validatePaymentInfo(paymentInfo)
+  // Validation passed
+} catch (error) {
+  if (error instanceof ValidationError) {
+    console.error('Invalid payment info:', error.message)
+  }
+}
+```
+
+**Type:**
+```ts
+function validatePaymentInfo(paymentInfo: PaymentInfo): void
+```
+
+**Validation Rules:**
+
+| Field | Validation |
+|-------|------------|
+| `operator` | Must not be `address(0)` |
+| `payer` | **Can be `address(0)`** (payer-agnostic payments) |
+| `receiver` | Must not be `address(0)` |
+| `token` | Must not be `address(0)` |
+| `feeReceiver` | Must not be `address(0)` |
+| `maxAmount` | Must be > 0 |
+| `minFeeBps` | Must be ≤ `maxFeeBps` |
+| `maxFeeBps` | Must be ≤ 10000 (100%) |
+| `authorizationExpiry` | Must be in the future (if non-zero) |
+| `preApprovalExpiry` | Must be in the future (if non-zero) |
+| `refundExpiry` | Must be in the future (if non-zero) |
+
+**Note:** Expiry fields of `0` mean "not used" and are considered valid.
+
+## toPaymentInfo
+
+Convert an `EscrowPayload` (from verified x402 payment) to a `PaymentInfo` struct.
+
+```ts
+import { toPaymentInfo } from '@x402r/core/payment'
+import type { EscrowPayload } from '@x402r/evm'
+
+const escrowPayload: EscrowPayload = {
+  // ... from verified x402 payment
+}
+
+const paymentInfo = toPaymentInfo(escrowPayload)
+```
+
+**Type:**
+```ts
+function toPaymentInfo(escrowPayload: EscrowPayload): PaymentInfo
+```
+
+**Conversion:**
+- Extracts `paymentInfo` from the payload
+- Sets `payer` to `escrowPayload.authorization.from`
+- Converts numeric fields to appropriate types (`bigint` for large numbers)
+
+**Use Case:** When processing payments from the x402 protocol, convert the payload to `PaymentInfo` for use with core actions.
+
+## PAYMENT_INFO_TYPEHASH
+
+The EIP-712 typehash for `PaymentInfo`.
+
+```ts
+import { PAYMENT_INFO_TYPEHASH } from '@x402r/core/payment'
+
+console.log(PAYMENT_INFO_TYPEHASH)
+// "0x..."
+```
+
+**Type:**
+```ts
+const PAYMENT_INFO_TYPEHASH: `0x${string}`
+```
+
+**Value:**
+```ts
+keccak256(
+  'PaymentInfo(address operator,address payer,address receiver,address token,uint120 maxAmount,uint48 preApprovalExpiry,uint48 authorizationExpiry,uint48 refundExpiry,uint16 minFeeBps,uint16 maxFeeBps,address feeReceiver,uint256 salt)'
+)
+```
+
+## Usage Examples
+
+### Validate Before Hashing
+
+```ts
+import { validatePaymentInfo, computePaymentInfoHash } from '@x402r/core/payment'
+import type { PaymentInfo } from '@x402r/core/types'
+
+const paymentInfo: PaymentInfo = {
+  // ... payment details
+}
+
+// Validate first
+validatePaymentInfo(paymentInfo)
+
+// Then hash
+const hash = computePaymentInfoHash(8453, escrowAddress, paymentInfo)
+```
+
+### Process Verified Payment
+
+```ts
+import { toPaymentInfo, validatePaymentInfo } from '@x402r/core/payment'
+import { getPaymentState } from '@x402r/core/actions'
+import type { EscrowPayload } from '@x402r/evm'
+
+// Receive verified payment from x402 protocol
+const escrowPayload: EscrowPayload = {
+  // ... from webhook or client
+}
+
+// Convert to PaymentInfo
+const paymentInfo = toPaymentInfo(escrowPayload)
+
+// Validate
+validatePaymentInfo(paymentInfo)
+
+// Use with actions
+const state = await getPaymentState(publicClient, {
+  operatorAddress: paymentInfo.operator,
+  chainId: 8453,
+  paymentInfo,
+})
+```
+
+### Payer-Agnostic Payments
+
+```ts
+import { computeEscrowNonce, validatePaymentInfo } from '@x402r/core/payment'
+import type { PaymentInfo } from '@x402r/core/types'
+import { zeroAddress } from 'viem'
+
+const paymentInfo: PaymentInfo = {
+  operator: '0x...',
+  payer: zeroAddress, // Payer-agnostic
+  receiver: '0x...',
+  token: '0x...',
+  maxAmount: 1000000n,
+  // ... other fields
+}
+
+// Validation allows payer = address(0)
+validatePaymentInfo(paymentInfo)
+
+// Compute ERC-3009 nonce
+const nonce = computeEscrowNonce(8453, escrowAddress, paymentInfo)
+```
+
+## Error Handling
+
+```ts
+import { validatePaymentInfo } from '@x402r/core/payment'
+import { ValidationError } from '@x402r/core/errors'
+
+try {
+  validatePaymentInfo(paymentInfo)
+} catch (error) {
+  if (error instanceof ValidationError) {
+    console.error('Validation failed:', error.message)
+    // Examples:
+    // "operator address must not be zero"
+    // "maxAmount must be greater than 0"
+    // "minFeeBps (500) must be <= maxFeeBps (250)"
+    // "authorizationExpiry is in the past"
+  }
+}
+```
+
+## Type Mapping
+
+Solidity to TypeScript mappings used in hashing:
+
+| Solidity Type | TypeScript Type | Notes |
+|---------------|-----------------|-------|
+| `address` | `` `0x${string}` `` | 20-byte hex string |
+| `uint120` | `bigint` | Large numbers |
+| `uint48` | `number` | Timestamps |
+| `uint16` | `number` | Fee basis points |
+| `uint256` | `bigint` | Salt |
+| `bytes32` | `` `0x${string}` `` | Hash |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Types" icon="code" href="/core/types">
+    PaymentInfo type definition
+  </Card>
+  <Card title="Actions" icon="bolt" href="/core/actions">
+    Use PaymentInfo with actions
+  </Card>
+</CardGroup>

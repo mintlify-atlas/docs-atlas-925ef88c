@@ -1,0 +1,97 @@
+---
+title: calculateTotalFees
+description: Calculate operator and protocol fees for a payment
+---
+
+## Usage
+
+```typescript
+import { calculateTotalFees } from 'x402r/actions'
+import { publicClient } from './client'
+
+const fees = await calculateTotalFees(publicClient, {
+  operatorAddress: '0x...',
+  paymentInfo: {
+    // PaymentInfo object
+  },
+  amount: 1000000n,
+  caller: '0x...'
+})
+```
+
+## Parameters
+
+### publicClient
+- **Type:** `PublicClient`
+- **Description:** A viem public client for reading blockchain data
+
+### parameters
+
+<ParamField path="operatorAddress" type="Address" required>
+  The address of the payment operator contract
+</ParamField>
+
+<ParamField path="paymentInfo" type="PaymentInfo" required>
+  Payment information object containing payment details
+</ParamField>
+
+<ParamField path="amount" type="bigint" required>
+  The payment amount in token base units
+</ParamField>
+
+<ParamField path="caller" type="Address" required>
+  The address initiating the fee calculation
+</ParamField>
+
+## Returns
+
+**Type:** `Promise<FeeCalculationResult>`
+
+Returns a detailed breakdown of all fees:
+
+```typescript
+interface FeeCalculationResult {
+  protocolFeeBps: bigint      // Protocol fee in basis points (1 bps = 0.01%)
+  operatorFeeBps: bigint      // Operator fee in basis points
+  totalFeeBps: bigint         // Combined fee in basis points
+  protocolFeeAmount: bigint   // Protocol fee amount in token base units
+  operatorFeeAmount: bigint   // Operator fee amount in token base units
+  totalFeeAmount: bigint      // Total fee amount in token base units
+  netAmount: bigint           // Amount after deducting fees
+}
+```
+
+## Example
+
+```typescript
+const paymentInfo = {
+  payer: '0xPayer...',
+  payee: '0xPayee...',
+  token: '0xUSDC...',
+  // ... other payment fields
+}
+
+const fees = await calculateTotalFees(publicClient, {
+  operatorAddress: '0x1234567890123456789012345678901234567890',
+  paymentInfo,
+  amount: 1000000n, // 1 USDC (6 decimals)
+  caller: '0xCaller...'
+})
+
+console.log('Operator fee:', fees.operatorFeeAmount)
+console.log('Protocol fee:', fees.protocolFeeAmount)
+console.log('Total fees:', fees.totalFeeAmount)
+console.log('Net amount:', fees.netAmount)
+console.log('Fee rate:', fees.totalFeeBps, 'bps') // e.g., 250 bps = 2.5%
+```
+
+## Notes
+
+- Fees are calculated in basis points where 10,000 bps = 100%
+- If no fee calculator is configured (zero address), operator fees will be 0
+- If no protocol fee config is set (zero address), protocol fees will be 0
+- The `netAmount` is the original amount minus all fees
+
+## Source
+
+[View source](https://github.com/your-org/x402r/blob/main/packages/core/src/actions/fees/calculateTotalFees.ts)

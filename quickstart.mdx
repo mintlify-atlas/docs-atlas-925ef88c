@@ -1,80 +1,251 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Build your first refundable payment with x402r SDK
 ---
 
-## Get started in three steps
+This guide walks you through creating a complete refundable payment flow using the x402r SDK. You'll learn how to set up viem clients, create an x402r client, and execute core payment operations.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+- Node.js 22 or higher installed
+- Basic familiarity with TypeScript and Ethereum development
+- An Ethereum wallet with test ETH on Base Sepolia (or another supported testnet)
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+<Info>
+  This guide uses Base Sepolia testnet. You can get test ETH from the [Base Sepolia faucet](https://www.coinbase.com/faucets/base-ethereum-goerli-faucet).
+</Info>
 
-### Step 2: Deploy your changes
+## Step-by-Step Guide
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+<Steps>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+<Step title="Install Dependencies">
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+Install the x402r SDK and viem:
 
-### Step 3: Go live
+<CodeGroup>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+```bash npm
+npm install @x402r/sdk viem
+```
 
-## Next steps
+```bash yarn
+yarn add @x402r/sdk viem
+```
 
-Now that you have your docs running, explore these key features:
+```bash pnpm
+pnpm add @x402r/sdk viem
+```
+
+</CodeGroup>
+
+</Step>
+
+<Step title="Set Up Viem Clients">
+
+Create a `PublicClient` and `WalletClient` using viem. The x402r SDK uses these clients for all blockchain interactions:
+
+```typescript
+import { createPublicClient, createWalletClient, http } from 'viem'
+import { baseSepolia } from 'viem/chains'
+import { privateKeyToAccount } from 'viem/accounts'
+
+// Create a public client for reading blockchain data
+const publicClient = createPublicClient({
+  chain: baseSepolia,
+  transport: http(),
+})
+
+// Create a wallet client for signing transactions
+const account = privateKeyToAccount('0x...')  // Your private key
+const walletClient = createWalletClient({
+  chain: baseSepolia,
+  transport: http(),
+  account,
+})
+```
+
+<Warning>
+  Never hardcode private keys in production code. Use environment variables or secure key management solutions.
+</Warning>
+
+</Step>
+
+<Step title="Create x402r Client">
+
+Initialize the x402r client with your viem clients and operator address:
+
+```typescript
+import { createX402r } from '@x402r/sdk'
+
+const x402r = createX402r({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x...', // The operator managing escrow
+})
+```
+
+The `operatorAddress` is the on-chain address of the x402r operator contract that manages payment escrow and dispute resolution.
+
+<Tip>
+  You can also use role-based presets for type-narrowed clients:
+  ```typescript
+  import { createPayerClient, createMerchantClient } from '@x402r/sdk'
+  
+  const payer = createPayerClient({ publicClient, walletClient, operatorAddress: '0x...' })
+  const merchant = createMerchantClient({ publicClient, walletClient, operatorAddress: '0x...' })
+  ```
+</Tip>
+
+</Step>
+
+<Step title="Query Operator Configuration">
+
+Fetch the operator's configuration to understand fees and policies:
+
+```typescript
+const config = await x402r.operator.getConfig()
+
+console.log('Operator Config:', {
+  arbiter: config.arbiter,
+  minFeeBps: config.minFeeBps,
+  maxFeeBps: config.maxFeeBps,
+  defaultFeeBps: config.defaultFeeBps,
+})
+```
+
+The operator config includes fee boundaries (in basis points) and the arbiter address for dispute resolution.
+
+</Step>
+
+<Step title="Check Payment State">
+
+Query the current state of a payment using a `PaymentInfo` object:
+
+```typescript
+import type { PaymentInfo } from '@x402r/sdk'
+
+// PaymentInfo identifies a unique payment
+const paymentInfo: PaymentInfo = {
+  payer: '0x...', // Payer's address
+  receiver: '0x...', // Merchant's address
+  token: '0x...', // Token contract address (use zero address for native ETH)
+  amount: BigInt('1000000000000000000'), // Amount in wei (1 ETH)
+  operator: '0x...', // Same as operatorAddress above
+}
+
+const state = await x402r.payment.getState(paymentInfo)
+
+console.log('Payment State:', {
+  isAuthorized: state[0],
+  authorizedAmount: state[1],
+  chargedAmount: state[2],
+})
+```
+
+</Step>
+
+<Step title="Get Payment Amounts">
+
+Retrieve detailed amount breakdowns including fees and refundable amounts:
+
+```typescript
+const amounts = await x402r.payment.getAmounts(paymentInfo)
+
+console.log('Payment Amounts:', {
+  authorizedAmount: amounts.authorizedAmount,
+  chargedAmount: amounts.chargedAmount,
+  receiverAmount: amounts.receiverAmount,
+  operatorFee: amounts.operatorFee,
+  refundableAmount: amounts.refundableAmount,
+})
+```
+
+This returns a structured breakdown of:
+- **authorizedAmount**: Total authorized in escrow
+- **chargedAmount**: Amount captured by the merchant
+- **receiverAmount**: Net amount the merchant receives (after fees)
+- **operatorFee**: Fee collected by the operator
+- **refundableAmount**: Amount available for refund
+
+</Step>
+
+</Steps>
+
+## Complete Working Example
+
+Here's a full example that brings it all together:
+
+```typescript
+import { createPublicClient, createWalletClient, http } from 'viem'
+import { baseSepolia } from 'viem/chains'
+import { privateKeyToAccount } from 'viem/accounts'
+import { createX402r } from '@x402r/sdk'
+import type { PaymentInfo } from '@x402r/sdk'
+
+// Set up viem clients
+const publicClient = createPublicClient({
+  chain: baseSepolia,
+  transport: http(),
+})
+
+const account = privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`)
+const walletClient = createWalletClient({
+  chain: baseSepolia,
+  transport: http(),
+  account,
+})
+
+// Create x402r client
+const x402r = createX402r({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x...', // Replace with actual operator address
+})
+
+// Define payment info
+const paymentInfo: PaymentInfo = {
+  payer: account.address,
+  receiver: '0x...', // Merchant address
+  token: '0x0000000000000000000000000000000000000000', // Native ETH
+  amount: BigInt('1000000000000000000'), // 1 ETH
+  operator: '0x...', // Operator address
+}
+
+async function main() {
+  // Get operator configuration
+  const config = await x402r.operator.getConfig()
+  console.log('Operator Config:', config)
+
+  // Check payment state
+  const state = await x402r.payment.getState(paymentInfo)
+  console.log('Payment State:', {
+    isAuthorized: state[0],
+    authorizedAmount: state[1],
+    chargedAmount: state[2],
+  })
+
+  // Get detailed amounts
+  const amounts = await x402r.payment.getAmounts(paymentInfo)
+  console.log('Payment Amounts:', amounts)
+}
+
+main().catch(console.error)
+```
+
+## Next Steps
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Payment Actions" icon="arrows-spin" href="/api/payment/authorize">
+    Learn about authorize, charge, release, and refund operations
+  </Card>
+  <Card title="Refund Flow" icon="gavel" href="/examples/refund-flow">
+    Implement refund requests and evidence submission
+  </Card>
+  <Card title="API Reference" icon="book" href="/api/payment/authorize">
+    Explore the complete SDK API documentation
+  </Card>
+  <Card title="Examples" icon="code" href="/examples/basic-payment">
+    View complete code examples and integration patterns
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

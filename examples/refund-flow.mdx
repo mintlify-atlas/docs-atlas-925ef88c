@@ -1,0 +1,316 @@
+---
+title: Refund Flow
+description: Request, track, and process refunds with evidence submission
+---
+
+This example demonstrates how to handle refunds in the x402r protocol, covering both escrow and post-escrow refund scenarios.
+
+## Overview
+
+The x402r protocol supports two types of refunds:
+
+1. **Refund in Escrow** — Refund during the escrow period (simpler, no approval needed)
+2. **Refund Post-Escrow** — Refund after escrow expires (requires merchant approval or arbiter signature)
+
+## Refund Request Flow
+
+For disputed payments, use the refund request system:
+
+### 1. Request a Refund
+
+The payer initiates a refund request:
+
+```ts
+import { createX402r } from '@x402r/sdk'
+import type { PaymentInfo } from '@x402r/sdk'
+
+// Setup client (see basic-payment example for details)
+const x402r = createX402r({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x...',
+  refundRequestAddress: '0x...', // Required for refund functionality
+})
+
+const paymentInfo: PaymentInfo = {
+  // ... payment details
+}
+
+const refundAmount = 500000n // Amount to refund
+const nonce = 0n // Unique nonce for this refund request
+
+const requestTxHash = await x402r.refund!.request(
+  paymentInfo,
+  refundAmount,
+  nonce
+)
+
+console.log('Refund request submitted:', requestTxHash)
+```
+
+### 2. Submit Evidence
+
+Provide supporting evidence for the refund request:
+
+```ts
+// Upload evidence to IPFS or similar storage
+const evidenceData = {
+  name: 'Missing delivery',
+  description: 'Package was never delivered despite tracking showing delivery',
+  attachments: ['ipfs://...'],
+}
+
+const evidenceJson = JSON.stringify(evidenceData)
+const cid = await uploadToIPFS(evidenceJson) // Your IPFS upload function
+
+// Submit evidence on-chain
+const evidenceTxHash = await x402r.evidence.submit(
+  paymentInfo,
+  nonce,
+  cid // IPFS CID or other content identifier
+)
+
+console.log('Evidence submitted:', evidenceTxHash)
+```
+
+### 3. Check Refund Status
+
+Monitor the refund request status:
+
+```ts
+const status = await x402r.refund!.getStatus(paymentInfo, nonce)
+
+console.log('Refund status:', status)
+// Possible values: 'pending', 'approved', 'denied', 'cancelled', etc.
+
+// Get detailed refund request data
+const requestData = await x402r.refund!.get(paymentInfo, nonce)
+
+console.log('Request details:', requestData)
+console.log('Requested amount:', requestData.amount)
+console.log('Status:', requestData.status)
+console.log('Timestamp:', requestData.timestamp)
+```
+
+### 4. Cancel Refund Request (Payer)
+
+The payer can cancel their own request:
+
+```ts
+const cancelTxHash = await x402r.refund!.cancel(paymentInfo, nonce)
+
+console.log('Refund request cancelled:', cancelTxHash)
+```
+
+## Escrow Refunds
+
+During the escrow period, refunds can be processed directly:
+
+```ts
+// Check if payment is in escrow period
+const isInEscrow = await x402r.escrow?.isDuringEscrow(paymentInfo)
+
+if (isInEscrow) {
+  // Get refundable amount
+  const amounts = await x402r.payment.getAmounts(paymentInfo)
+  console.log('Refundable amount:', amounts.refundableAmount)
+  
+  // Process refund
+  const refundTxHash = await x402r.payment.refundInEscrow(
+    paymentInfo,
+    amounts.refundableAmount
+  )
+  
+  console.log('Escrow refund processed:', refundTxHash)
+}
+```
+
+## Post-Escrow Refunds
+
+After the escrow period expires, refunds require merchant cooperation:
+
+### Option 1: Merchant Approves (Token Allowance)
+
+The merchant must approve the refund collector to transfer tokens:
+
+```ts
+// Merchant approves post-escrow refund
+const token = '0x...' // ERC-20 token address
+const refundAmount = 500000n
+
+const approveTxHash = await x402r.payment.approvePostEscrowRefund(
+  token,
+  refundAmount
+)
+
+console.log('Post-escrow refund approved:', approveTxHash)
+
+// Check allowance
+const allowance = await x402r.payment.getPostEscrowRefundAllowance(
+  token,
+  merchantAddress
+)
+
+console.log('Current allowance:', allowance)
+```
+
+### Option 2: Arbiter Signature
+
+An arbiter can approve the refund with a signature:
+
+```ts
+// Arbiter signs approval (off-chain)
+const signature = '0x...' // EIP-712 signature from arbiter
+const expiry = Math.floor(Date.now() / 1000) + 3600 // 1 hour validity
+
+// Anyone can execute with valid signature
+const approveTxHash = await x402r.refund!.approveWithSignature(
+  paymentInfo,
+  nonce,
+  refundAmount,
+  expiry,
+  signature
+)
+
+console.log('Refund approved with signature:', approveTxHash)
+```
+
+### Process Post-Escrow Refund
+
+Once approved, execute the refund:
+
+```ts
+const tokenCollector = '0x...' // Token collector address
+const collectorData = '0x' // Additional data
+
+const refundTxHash = await x402r.payment.refundPostEscrow(
+  paymentInfo,
+  refundAmount,
+  tokenCollector,
+  collectorData
+)
+
+console.log('Post-escrow refund executed:', refundTxHash)
+```
+
+## Merchant Actions
+
+Merchants can refuse or deny refund requests:
+
+### Refuse Refund Request
+
+```ts
+// Merchant refuses the refund (before arbiter review)
+const refuseTxHash = await x402r.refund!.refuse(paymentInfo, nonce)
+
+console.log('Refund request refused:', refuseTxHash)
+```
+
+## Arbiter Actions
+
+Arbiters can deny refund requests:
+
+### Deny Refund Request
+
+```ts
+// Arbiter denies the refund after review
+const denyTxHash = await x402r.refund!.deny(paymentInfo, nonce)
+
+console.log('Refund request denied:', denyTxHash)
+```
+
+## View Evidence
+
+Retrieve submitted evidence:
+
+```ts
+// Get evidence count
+const evidenceCount = await x402r.evidence.count(paymentInfo, nonce)
+
+console.log('Evidence count:', evidenceCount)
+
+// Get specific evidence entry
+const evidenceEntry = await x402r.evidence.get(paymentInfo, nonce, 0n)
+
+console.log('Evidence CID:', evidenceEntry.cid)
+console.log('Submitted by:', evidenceEntry.submitter)
+console.log('Timestamp:', evidenceEntry.timestamp)
+
+// Get batch of evidence
+const evidenceBatch = await x402r.evidence.getBatch(
+  paymentInfo,
+  nonce,
+  0n, // offset
+  10n // count
+)
+
+console.log('Evidence batch:', evidenceBatch)
+```
+
+## Complete Refund Example
+
+```ts
+import { createX402r } from '@x402r/sdk'
+import type { PaymentInfo } from '@x402r/sdk'
+
+// Initialize client
+const x402r = createX402r({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x...',
+  refundRequestAddress: '0x...',
+  escrowPeriodAddress: '0x...', // Optional: for escrow checks
+})
+
+const paymentInfo: PaymentInfo = {
+  // ... payment details
+}
+
+async function processRefund() {
+  // Check if in escrow period
+  const isInEscrow = await x402r.escrow?.isDuringEscrow(paymentInfo)
+  
+  if (isInEscrow) {
+    // Simple escrow refund
+    const amounts = await x402r.payment.getAmounts(paymentInfo)
+    const txHash = await x402r.payment.refundInEscrow(
+      paymentInfo,
+      amounts.refundableAmount
+    )
+    console.log('Escrow refund:', txHash)
+  } else {
+    // Post-escrow refund with dispute
+    const nonce = 0n
+    const refundAmount = 500000n
+    
+    // 1. Request refund
+    await x402r.refund!.request(paymentInfo, refundAmount, nonce)
+    
+    // 2. Submit evidence
+    const cid = await uploadEvidence({ reason: 'Product defective' })
+    await x402r.evidence.submit(paymentInfo, nonce, cid)
+    
+    // 3. Wait for approval or arbiter signature
+    // ... (in production, poll status or use events)
+    
+    // 4. Execute refund once approved
+    const tokenCollector = '0x...'
+    await x402r.payment.refundPostEscrow(
+      paymentInfo,
+      refundAmount,
+      tokenCollector,
+      '0x'
+    )
+    
+    console.log('Post-escrow refund completed')
+  }
+}
+
+processRefund().catch(console.error)
+```
+
+## Next Steps
+
+- Learn about [custom extensions](/examples/custom-extensions)
+- Review [Refund Actions API](/api-reference/refund)
+- Explore [Evidence API](/api-reference/evidence)

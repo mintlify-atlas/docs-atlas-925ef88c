@@ -1,0 +1,162 @@
+---
+title: Contributing
+description: Development setup, testing, and contribution guidelines
+---
+
+## Prerequisites
+
+Before contributing, ensure you have:
+
+- [Node.js](https://nodejs.org/) >= 22
+- [pnpm](https://pnpm.io/) 10.23
+- [Foundry](https://getfoundry.sh/) (required for fork tests)
+
+## Setup
+
+Clone the repository and install dependencies:
+
+```bash
+git clone https://github.com/BackTrackCo/x402r-sdk.git
+cd x402r-sdk
+pnpm install
+pnpm build
+```
+
+### Enable Git Hooks
+
+The repository includes pre-commit hooks that run linting, type-checking, and builds:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+This ensures all commits meet quality standards before being pushed.
+
+## Development Commands
+
+| Command | Description |
+| --- | --- |
+| `pnpm build` | Build all packages |
+| `pnpm test` | Run unit tests |
+| `pnpm test:fork` | Run fork tests (requires Foundry) |
+| `pnpm typecheck` | Type-check all packages |
+| `pnpm check` | Biome lint + format check |
+| `pnpm format` | Auto-fix lint + format |
+
+### Build
+
+Build all packages in the monorepo:
+
+```bash
+pnpm build
+```
+
+### Testing
+
+**Unit tests:**
+```bash
+pnpm test
+```
+
+**Fork tests** (requires Foundry and simulates real chain state):
+```bash
+pnpm test:fork
+```
+
+### Type Checking
+
+Run TypeScript type checks across all packages:
+
+```bash
+pnpm typecheck
+```
+
+### Linting & Formatting
+
+**Check for issues:**
+```bash
+pnpm check
+```
+
+**Auto-fix:**
+```bash
+pnpm format
+```
+
+## Code Style
+
+The project follows strict TypeScript conventions:
+
+- **TypeScript strict mode** enabled
+- **Use `viem`** for all chain interactions (never `ethers.js`)
+- **Biome** handles linting and formatting (no ESLint or Prettier)
+- **Single quotes**, no semicolons
+
+### Example
+
+```ts
+import { createPublicClient, http } from 'viem'
+import { base } from 'viem/chains'
+
+const client = createPublicClient({
+  chain: base,
+  transport: http(),
+})
+```
+
+## Branching Strategy
+
+Branch from `main` using the following naming convention:
+
+```
+<username>/<feature-description>
+```
+
+**Examples:**
+- `alice/add-polygon-support`
+- `bob/fix-validation-error`
+- `charlie/refactor-payment-state`
+
+Use **kebab-case** for feature descriptions.
+
+## Pull Request Workflow
+
+1. **Create a feature branch** from `main`
+2. **Make your changes** with clear, atomic commits
+3. **Run checks** before pushing:
+   ```bash
+   pnpm build && pnpm typecheck && pnpm check
+   ```
+4. **Push your branch** and open a pull request
+5. **Address review feedback** and update your branch
+
+## Testing Guidelines
+
+- Add unit tests for new functions or modules
+- Update fork tests if modifying contract interactions
+- Ensure all tests pass before submitting a PR:
+  ```bash
+  pnpm test && pnpm test:fork
+  ```
+
+## Package Structure
+
+The monorepo contains three packages:
+
+| Package | Path | Description |
+| --- | --- | --- |
+| `@x402r/sdk` | `packages/sdk` | Client factory, role presets, action groups |
+| `@x402r/core` | `packages/core` | Types, ABIs, config, raw actions, deploy utils |
+| `@x402r/helpers` | `packages/helpers` | Payment option builder for x402 HTTP 402 flows |
+
+## Questions or Issues?
+
+If you have questions or encounter issues:
+
+- Check the [documentation](https://docs.x402r.org)
+- Open an issue on [GitHub](https://github.com/BackTrackCo/x402r-sdk/issues)
+- Review existing PRs for examples
+
+## License
+
+By contributing, you agree that your contributions will be licensed under the [Apache-2.0](https://github.com/BackTrackCo/x402r-sdk/blob/main/LICENSE) license.

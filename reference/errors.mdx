@@ -1,0 +1,244 @@
+---
+title: Error Handling
+description: Error types, patterns, and debugging
+---
+
+## Error Types
+
+The x402r SDK provides a hierarchy of typed errors for precise error handling.
+
+### X402rError
+
+Base error class for all SDK errors.
+
+```ts
+class X402rError extends Error {
+  name: 'X402rError'
+  shortMessage: string
+  details?: string
+  docsPath?: string
+  metaMessages?: string[]
+
+  walk(): Error
+  walk(fn: (err: Error) => boolean): Error | null
+}
+```
+
+**Properties:**
+- `shortMessage` — concise error description
+- `details` — additional context (optional)
+- `docsPath` — link to relevant documentation (optional)
+- `metaMessages` — structured supplementary messages (optional)
+
+**Methods:**
+- `walk()` — traverse the error cause chain to find the root error
+- `walk(fn)` — find the first error in the chain matching the predicate
+
+### ConfigError
+
+Thrown when chain configuration is invalid or missing.
+
+```ts
+class ConfigError extends X402rError {
+  name: 'ConfigError'
+}
+```
+
+**Common cases:**
+- Unsupported chain ID
+- Missing factory deployments
+- Invalid CAIP-2 network identifier
+
+**Example:**
+```ts
+import { getChainConfig, ConfigError } from '@x402r/sdk'
+
+try {
+  const config = getChainConfig(999999)
+} catch (err) {
+  if (err instanceof ConfigError) {
+    console.error(err.shortMessage) // "Chain 999999 is not supported"
+    console.error(err.metaMessages) // ["Supported chains: 1, 8453, ..."]
+  }
+}
+```
+
+### ContractCallError
+
+Thrown when on-chain contract calls fail or revert.
+
+```ts
+class ContractCallError extends X402rError {
+  name: 'ContractCallError'
+  revertName?: string
+  revertArgs?: readonly unknown[]
+}
+```
+
+**Properties:**
+- `revertName` — decoded revert error name (if available)
+- `revertArgs` — decoded revert arguments (if available)
+
+**Example:**
+```ts
+import { ContractCallError } from '@x402r/sdk'
+
+try {
+  await x402r.payment.capture(paymentInfo)
+} catch (err) {
+  if (err instanceof ContractCallError) {
+    console.error(err.shortMessage) // "Capture payment failed"
+    console.error(err.revertName) // "InsufficientBalance"
+    console.error(err.metaMessages) // ["Contract: 0x...", "Revert: InsufficientBalance"]
+  }
+}
+```
+
+### ValidationError
+
+Thrown when input validation fails before making contract calls.
+
+```ts
+class ValidationError extends X402rError {
+  name: 'ValidationError'
+}
+```
+
+**Common cases:**
+- Invalid address format
+- Amount out of range
+- Missing required parameters
+
+**Example:**
+```ts
+import { ValidationError } from '@x402r/sdk'
+
+try {
+  await x402r.payment.authorize({
+    payer: 'invalid-address',
+    receiver: '0x...',
+    token: '0x...',
+    amount: 100n,
+  })
+} catch (err) {
+  if (err instanceof ValidationError) {
+    console.error(err.shortMessage) // "Invalid payer address"
+  }
+}
+```
+
+### NotImplementedError
+
+Thrown when calling methods not yet implemented in the SDK.
+
+```ts
+class NotImplementedError extends X402rError {
+  name: 'NotImplementedError'
+}
+```
+
+## Error Handling Patterns
+
+### Type-safe Error Handling
+
+```ts
+import {
+  ConfigError,
+  ContractCallError,
+  ValidationError,
+  X402rError,
+} from '@x402r/sdk'
+
+try {
+  await x402r.payment.capture(paymentInfo)
+} catch (err) {
+  if (err instanceof ValidationError) {
+    // Handle validation errors (e.g., show form errors)
+    console.error('Invalid input:', err.shortMessage)
+  } else if (err instanceof ContractCallError) {
+    // Handle contract reverts (e.g., retry or notify user)
+    console.error('Transaction failed:', err.revertName)
+  } else if (err instanceof ConfigError) {
+    // Handle config errors (e.g., switch network)
+    console.error('Network issue:', err.shortMessage)
+  } else if (err instanceof X402rError) {
+    // Catch-all for other SDK errors
+    console.error('SDK error:', err.shortMessage)
+  } else {
+    // Non-SDK errors (network, runtime, etc.)
+    throw err
+  }
+}
+```
+
+### Walking the Error Chain
+
+Use `walk()` to find the root cause:
+
+```ts
+import { X402rError } from '@x402r/sdk'
+
+try {
+  await x402r.payment.capture(paymentInfo)
+} catch (err) {
+  if (err instanceof X402rError) {
+    // Get the root cause
+    const root = err.walk()
+    console.error('Root cause:', root.message)
+
+    // Find a specific error type
+    const contractError = err.walk(
+      (e) => e instanceof ContractCallError
+    )
+    if (contractError) {
+      console.error('Found contract error:', contractError)
+    }
+  }
+}
+```
+
+### Accessing Error Metadata
+
+```ts
+import { X402rError } from '@x402r/sdk'
+
+try {
+  await x402r.payment.capture(paymentInfo)
+} catch (err) {
+  if (err instanceof X402rError) {
+    console.error(err.shortMessage) // Brief error
+    console.error(err.details) // Additional context
+    console.error(err.metaMessages) // Structured info
+    if (err.docsPath) {
+      console.log(`Docs: https://docs.x402r.org${err.docsPath}`)
+    }
+  }
+}
+```
+
+## Debugging Tips
+
+1. **Check `metaMessages`** for additional context like contract addresses or revert names
+2. **Use `walk()`** to trace errors through multiple layers
+3. **Enable verbose logging** in your viem client to see raw RPC responses
+4. **Inspect `revertName` and `revertArgs`** on `ContractCallError` for decoded revert data
+
+## Error Message Format
+
+All `X402rError` instances format their message as:
+
+```
+<shortMessage>
+
+<metaMessages[0]>
+<metaMessages[1]>
+...
+
+Docs: https://docs.x402r.org<docsPath>
+
+Details: <details>
+
+Version: @x402r/core@<version>
+```
+
+This structured format ensures all error details are available in both programmatic (`err.shortMessage`, `err.details`) and human-readable (`err.message`) forms.

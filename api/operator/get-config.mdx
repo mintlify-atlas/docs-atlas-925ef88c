@@ -1,0 +1,68 @@
+---
+title: getOperatorConfig
+description: Retrieve the complete configuration of a payment operator
+---
+
+## Usage
+
+```typescript
+import { getOperatorConfig } from 'x402r/actions'
+import { publicClient } from './client'
+
+const config = await getOperatorConfig(publicClient, {
+  operatorAddress: '0x...'
+})
+```
+
+## Parameters
+
+### publicClient
+- **Type:** `PublicClient`
+- **Description:** A viem public client for reading blockchain data
+
+### parameters
+
+<ParamField path="operatorAddress" type="Address" required>
+  The address of the payment operator contract
+</ParamField>
+
+## Returns
+
+**Type:** `Promise<OperatorSlots>`
+
+Returns an object containing all operator configuration addresses:
+
+```typescript
+interface OperatorSlots {
+  escrow: Address
+  authorizeCondition: Address
+  authorizeRecorder: Address
+  chargeCondition: Address
+  chargeRecorder: Address
+  releaseCondition: Address
+  releaseRecorder: Address
+  refundInEscrowCondition: Address
+  refundInEscrowRecorder: Address
+  refundPostEscrowCondition: Address
+  refundPostEscrowRecorder: Address
+  feeCalculator: Address
+  feeRecipient: Address
+  protocolFeeConfig: Address
+}
+```
+
+## Example
+
+```typescript
+const config = await getOperatorConfig(publicClient, {
+  operatorAddress: '0x1234567890123456789012345678901234567890'
+})
+
+console.log('Escrow address:', config.escrow)
+console.log('Fee calculator:', config.feeCalculator)
+console.log('Fee recipient:', config.feeRecipient)
+```
+
+## Source
+
+[View source](https://github.com/your-org/x402r/blob/main/packages/core/src/actions/operator/getOperatorConfig.ts)

@@ -1,0 +1,84 @@
+---
+title: 'Core API Overview'
+description: 'Types, ABIs, config, and action functions for the x402r protocol'
+---
+
+## Overview
+
+`@x402r/core` provides low-level action functions, types, ABIs, and configuration for the x402r protocol. It serves as the foundational layer for building custom client implementations and advanced integrations.
+
+## When to Use
+
+**Most users should install `@x402r/sdk`** — it provides a higher-level API with better defaults and ergonomics.
+
+Use `@x402r/core` directly when you need:
+- Low-level action functions for custom workflows
+- Custom client implementations
+- Direct access to protocol types and ABIs
+- Fine-grained control over contract interactions
+
+## Installation
+
+```bash
+pnpm add @x402r/core
+```
+
+## Package Exports
+
+The package provides multiple entry points for tree-shaking optimization:
+
+| Path | Contents |
+| --- | --- |
+| `@x402r/core` | Everything (re-exports all subpaths) |
+| `@x402r/core/types` | `PaymentInfo`, `OperatorConfig`, `ConditionConfig`, etc. |
+| `@x402r/core/config` | Chain registry, `getChainConfig()`, addresses |
+| `@x402r/core/actions` | 50+ action functions (read/write contract calls) |
+| `@x402r/core/deploy` | Factory deploy functions, condition builder |
+| `@x402r/core/errors` | `X402rError`, `ConfigError`, `ContractCallError`, `ValidationError` |
+| `@x402r/core/payment` | `computePaymentInfoHash()`, `toPaymentInfo()`, `validatePaymentInfo()` |
+
+## Basic Usage
+
+```ts
+import { getPaymentState } from '@x402r/core/actions'
+import { createPublicClient, http } from 'viem'
+import { base } from 'viem/chains'
+
+const publicClient = createPublicClient({
+  chain: base,
+  transport: http(),
+})
+
+const [isAuthorized, authorizedAmount, chargedAmount] = await getPaymentState(
+  publicClient,
+  { operatorAddress, chainId: 8453, paymentInfo },
+)
+```
+
+## Architecture
+
+The core package is organized into distinct modules:
+
+- **Types** — TypeScript interfaces derived from Solidity ABIs
+- **Config** — Chain registry and protocol deployment addresses
+- **Actions** — Read and write functions for all protocol operations
+- **Deploy** — Factory helpers and deployment presets
+- **Payment** — Utilities for hashing, validation, and serialization
+- **Errors** — Typed error classes for better error handling
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Actions" icon="bolt" href="/core/actions">
+    Explore 50+ action functions for protocol interactions
+  </Card>
+  <Card title="Types" icon="code" href="/core/types">
+    Review core type definitions and interfaces
+  </Card>
+  <Card title="Config" icon="globe" href="/core/config">
+    Configure chains and access deployment addresses
+  </Card>
+  <Card title="Deploy" icon="rocket" href="/core/deploy">
+    Deploy operators and protocol components
+  </Card>
+</CardGroup>

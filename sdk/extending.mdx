@@ -1,0 +1,413 @@
+---
+title: 'Extending the Client'
+description: 'Add custom namespaces and plugins with the .extend() pattern'
+---
+
+The x402r SDK uses a viem-inspired `.extend()` pattern to add custom namespaces to the client while preserving full type safety.
+
+## The .extend() Pattern
+
+Extensions receive the base client and return an object whose keys become top-level properties:
+
+```typescript
+const x402r = createX402r(config)
+  .extend((client) => ({
+    // New namespace added to client
+    customNamespace: {
+      async myMethod() {
+        // Access base client methods
+        const amounts = await client.payment.getAmounts(paymentInfo)
+        return amounts.refundableAmount
+      },
+    },
+  }))
+
+// Now available as top-level property
+await x402r.customNamespace.myMethod()
+```
+
+### Type Safety
+
+The return type of `.extend()` is `Prettify<this & T>`, where `T` is the extension object. This means:
+
+- All original client properties are preserved
+- New properties are added at the type level
+- TypeScript autocomplete works for both base and extended methods
+- Extensions are fully typed and checked at compile time
+
+```typescript
+type Extended = typeof x402r
+// Extended = X402r & { customNamespace: { myMethod(): Promise<bigint> } }
+```
+
+## Chaining Extensions
+
+Extensions can be chained indefinitely. Each `.extend()` call returns a new client type with all previous extensions:
+
+```typescript
+const x402r = createX402r(config)
+  .extend((client) => ({
+    namespace1: { method1: () => 'a' },
+  }))
+  .extend((client) => ({
+    namespace2: { method2: () => 'b' },
+  }))
+  .extend((client) => ({
+    namespace3: {
+      // Can access previous extensions
+      method3: () => client.namespace1.method1() + client.namespace2.method2(),
+    },
+  }))
+
+await x402r.namespace3.method3() // 'ab'
+```
+
+## Shipped Plugins
+
+The SDK includes two built-in plugins for optional condition contracts.
+
+### escrowPeriodActions
+
+Adds escrow functionality when `escrowPeriodAddress` wasn't provided in the initial config:
+
+```typescript
+import { createX402r } from '@x402r/sdk'
+import { escrowPeriodActions } from '@x402r/sdk/plugins'
+
+const x402r = createX402r({ publicClient, walletClient, operatorAddress: '0x…' })
+  .extend(escrowPeriodActions('0xEscrowPeriodAddress…'))
+
+// Now escrow is available
+await x402r.escrow!.isDuringEscrow(paymentInfo)
+```
+
+<Info>
+  This plugin fills the `escrow` slot if it's currently `undefined`. If `escrowPeriodAddress` was already provided in config, the plugin has no effect.
+</Info>
+
+### freezeActions
+
+Adds freeze functionality when `freezeAddress` wasn't provided in the initial config:
+
+```typescript
+import { createX402r } from '@x402r/sdk'
+import { freezeActions } from '@x402r/sdk/plugins'
+
+const x402r = createX402r({ publicClient, walletClient, operatorAddress: '0x…' })
+  .extend(freezeActions('0xFreezeAddress…'))
+
+// Now freeze is available
+await x402r.freeze!.freeze(paymentInfo)
+const frozen = await x402r.freeze!.isFrozen(paymentInfo)
+await x402r.freeze!.unfreeze(paymentInfo)
+```
+
+<Info>
+  This plugin fills the `freeze` slot if it's currently `undefined`. If `freezeAddress` was already provided in config, the plugin has no effect.
+</Info>
+
+## Creating Custom Extensions
+
+Here's a complete example of a custom dispute resolution extension from the README:
+
+```typescript
+const x402r = createX402r({ publicClient, walletClient, operatorAddress: '0x…' })
+  .extend(escrowPeriodActions('0xEscrowPeriod…'))
+  .extend((client) => ({
+    disputes: {
+      async submitEvidence(
+        paymentInfo: PaymentInfo,
+        nonce: bigint,
+        evidence: { name: string; description: string },
+        ipfsUpload: (data: string) => Promise<string>,
+      ) {
+        const cid = await ipfsUpload(JSON.stringify(evidence))
+        return client.evidence.submit(paymentInfo, nonce, cid)
+      },
+      async resolve(paymentInfo: PaymentInfo, nonce: bigint, ruling: 'refund' | 'deny') {
+        if (ruling === 'refund') {
+          const { refundableAmount } = await client.payment.getAmounts(paymentInfo)
+          return client.payment.refundInEscrow(paymentInfo, refundableAmount)
+        }
+        return client.refund.deny(paymentInfo, nonce)
+      },
+    },
+  }))
+
+// Use the custom extension
+await x402r.disputes.submitEvidence(
+  paymentInfo,
+  0n,
+  { name: 'Missing delivery', description: 'Package never arrived' },
+  pinataUpload,
+)
+
+await x402r.disputes.resolve(paymentInfo, 0n, 'refund')
+```
+
+This example demonstrates:
+- **Composition:** Combines IPFS upload with evidence submission
+- **Business logic:** Encapsulates dispute resolution flow
+- **Type safety:** All parameters and return types are checked
+- **Reusability:** Can be extracted into a plugin function
+
+## Extension Rules
+
+The `buildExtend()` function enforces these rules (from client.ts:18-35):
+
+```typescript
+function buildExtend(base: X402r): X402r['extend'] {
+  return (fn) => {
+    const extensions = fn(base)
+    const safe = { ...extensions }
+    // Extensions can fill slots that are undefined on the base client
+    // (e.g., providing escrow/freeze when no address was configured).
+    // Only defined base keys are protected from override.
+    const baseRecord = base as unknown as Record<string, unknown>
+    for (const key of Object.keys(base)) {
+      if (baseRecord[key] !== undefined) {
+        delete (safe as Record<string, unknown>)[key]
+      }
+    }
+    const combined = { ...base, ...safe } as X402r & typeof extensions
+    return Object.assign(combined, {
+      extend: buildExtend(combined as X402r),
+    }) as X402r & typeof extensions
+  }
+}
+```
+
+**Key behaviors:**
+
+1. **Cannot override defined keys:** If a base property is already defined (not `undefined`), extensions cannot replace it
+2. **Can fill undefined slots:** If a base property is `undefined` (like `escrow` or `freeze`), extensions can provide it
+3. **Extensions persist:** Each `.extend()` returns a new client with all previous extensions preserved
+4. **New extend:** Each extended client gets a fresh `extend` method for further chaining
+
+### What Can Be Extended
+
+✅ **Allowed:**
+- Adding new namespaces (`disputes`, `analytics`, etc.)
+- Filling `undefined` slots (`escrow`, `freeze`, `refund`)
+- Adding utility methods that compose existing actions
+
+❌ **Not Allowed:**
+- Overriding `payment`, `evidence`, `operator`, or `watch` (always defined)
+- Replacing defined `escrow`/`freeze` if configured in the constructor
+- Modifying the `config` object
+- Replacing `canExecute` or `extend` itself
+
+## Practical Extension Patterns
+
+### 1. High-Level Workflows
+
+Combine multiple low-level actions into domain-specific flows:
+
+```typescript
+const x402r = createX402r(config).extend((client) => ({
+  workflows: {
+    async completeRefund(paymentInfo: PaymentInfo, nonce: bigint) {
+      // 1. Verify refund request exists
+      const request = await client.refund!.get(paymentInfo, nonce)
+      
+      // 2. Check if in escrow
+      const inEscrow = await client.escrow!.isDuringEscrow(paymentInfo)
+      
+      // 3. Execute appropriate refund
+      if (inEscrow) {
+        return client.payment.refundInEscrow(paymentInfo, request.amount)
+      } else {
+        return client.payment.refundPostEscrow(
+          paymentInfo,
+          request.amount,
+          tokenCollector,
+          collectorData,
+        )
+      }
+    },
+  },
+}))
+```
+
+### 2. External Service Integration
+
+```typescript
+const x402r = createX402r(config).extend((client) => ({
+  ipfs: {
+    async submitEvidence(
+      paymentInfo: PaymentInfo,
+      nonce: bigint,
+      evidenceData: unknown,
+      pinataKey: string,
+    ) {
+      const response = await fetch('https://api.pinata.cloud/pinning/pinJSONToIPFS', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${pinataKey}`,
+        },
+        body: JSON.stringify(evidenceData),
+      })
+      const { IpfsHash } = await response.json()
+      return client.evidence.submit(paymentInfo, nonce, IpfsHash)
+    },
+  },
+}))
+```
+
+### 3. Analytics and Monitoring
+
+```typescript
+const x402r = createX402r(config).extend((client) => ({
+  analytics: {
+    async getPaymentSummary(paymentInfo: PaymentInfo) {
+      const [state, amounts, inEscrow] = await Promise.all([
+        client.payment.getState(paymentInfo),
+        client.payment.getAmounts(paymentInfo),
+        client.escrow?.isDuringEscrow(paymentInfo) ?? Promise.resolve(false),
+      ])
+      
+      return {
+        exists: state[0],
+        authorized: state[1],
+        charged: state[2],
+        amounts,
+        inEscrow,
+        refundable: amounts.refundableAmount > 0n,
+      }
+    },
+  },
+}))
+```
+
+### 4. Validation Helpers
+
+```typescript
+const x402r = createX402r(config).extend((client) => ({
+  validation: {
+    async canRefund(paymentInfo: PaymentInfo, amount: bigint): Promise<boolean> {
+      const amounts = await client.payment.getAmounts(paymentInfo)
+      const frozen = await client.freeze?.isFrozen(paymentInfo) ?? false
+      return amounts.refundableAmount >= amount && !frozen
+    },
+    async canRelease(paymentInfo: PaymentInfo, amount: bigint): Promise<boolean> {
+      const inEscrow = await client.escrow?.isDuringEscrow(paymentInfo) ?? false
+      return !inEscrow && await client.canExecute(ConditionSlot.Release, paymentInfo, amount)
+    },
+  },
+}))
+```
+
+## Packaging Extensions
+
+Extract reusable extensions into standalone functions:
+
+```typescript
+// my-extensions.ts
+import type { X402r } from '@x402r/sdk'
+
+export function disputeHelpers() {
+  return (client: X402r) => ({
+    disputes: {
+      async submitEvidence(/* ... */) { /* ... */ },
+      async resolve(/* ... */) { /* ... */ },
+    },
+  })
+}
+
+export function analyticsExtension() {
+  return (client: X402r) => ({
+    analytics: {
+      async getPaymentSummary(/* ... */) { /* ... */ },
+    },
+  })
+}
+
+// usage.ts
+import { disputeHelpers, analyticsExtension } from './my-extensions'
+
+const x402r = createX402r(config)
+  .extend(disputeHelpers())
+  .extend(analyticsExtension())
+```
+
+## Extending Role Presets
+
+Role presets support `.extend()` with correctly scoped types:
+
+```typescript
+import { createPayerClient } from '@x402r/sdk'
+
+const payer = createPayerClient(config).extend((client) => ({
+  shortcuts: {
+    async requestFullRefund(paymentInfo: PaymentInfo, nonce: bigint) {
+      const amounts = await client.payment.getAmounts(paymentInfo)
+      return client.refund!.request(paymentInfo, amounts.refundableAmount, nonce)
+    },
+  },
+}))
+
+// Extension is available
+await payer.shortcuts.requestFullRefund(paymentInfo, 0n)
+
+// Original narrowing is preserved
+await payer.payment.getAmounts(paymentInfo) // ✅
+// payer.payment.charge(…) // ❌ Type error - still doesn't exist
+```
+
+The extension function receives the full `X402r` type but returns a scoped client type.
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep extensions focused">
+    Each extension should have a single responsibility. Don't create a mega-extension that does everything.
+  </Accordion>
+  
+  <Accordion title="Use TypeScript generics for reusability">
+    ```typescript
+    function createUploader<T>(uploadFn: (data: T) => Promise<string>) {
+      return (client: X402r) => ({
+        uploader: {
+          async submitEvidence(paymentInfo: PaymentInfo, nonce: bigint, data: T) {
+            const cid = await uploadFn(data)
+            return client.evidence.submit(paymentInfo, nonce, cid)
+          },
+        },
+      })
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Check for undefined action groups">
+    Always check if conditional action groups exist before using them:
+    ```typescript
+    if (!client.escrow) {
+      throw new Error('Escrow actions not configured')
+    }
+    await client.escrow.isDuringEscrow(paymentInfo)
+    ```
+  </Accordion>
+  
+  <Accordion title="Document extension behavior">
+    Add JSDoc comments explaining what your extension does and any prerequisites:
+    ```typescript
+    /**
+     * Adds dispute resolution helpers.
+     * Requires refund and escrow action groups to be configured.
+     */
+    export function disputeHelpers() { /* ... */ }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Client Setup" icon="gear" href="/sdk/client">
+    Configure the base client
+  </Card>
+  <Card title="Action Groups" icon="layer-group" href="/sdk/action-groups">
+    See all available base methods
+  </Card>
+</CardGroup>

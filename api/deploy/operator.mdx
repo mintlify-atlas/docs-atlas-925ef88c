@@ -1,0 +1,115 @@
+---
+title: "Operator Deployment"
+description: "Deploy payment operators and related factory functions"
+---
+
+## deployOperator
+
+Deploys a PaymentOperator contract via factory.
+
+```typescript
+function deployOperator(
+  walletClient: WalletClient,
+  publicClient: PublicClient,
+  parameters: DeployOperatorParameters
+): Promise<DeployOperatorReturnType>
+```
+
+### Parameters
+
+- `walletClient` (WalletClient): The wallet client for signing transactions
+- `publicClient` (PublicClient): The public client for reading blockchain state
+- `parameters` (DeployOperatorParameters):
+  - `factoryAddress` (Address): The PaymentOperator factory contract address
+  - `config` (OperatorConfig): The operator configuration object
+
+### Returns
+
+Promise\<DeployResult\> containing:
+- `address` (Address): The deployed operator contract address
+- `isNew` (boolean): Whether a new contract was deployed
+- `hash` (Hash | null): The transaction hash if deployed
+
+### Example
+
+```typescript
+import { deployOperator } from '@x402r/core/deploy'
+
+const result = await deployOperator(walletClient, publicClient, {
+  factoryAddress: '0x...',
+  config: {
+    feeRecipient: '0x...',
+    feeCalculator: '0x...',
+    authorizeCondition: '0x...',
+    authorizeRecorder: '0x...',
+    // ... other config fields
+  }
+})
+
+console.log('Operator deployed at:', result.address)
+```
+
+---
+
+## computeOperatorAddress
+
+Computes the deterministic address of a PaymentOperator contract without deploying.
+
+```typescript
+function computeOperatorAddress(
+  publicClient: PublicClient,
+  parameters: ComputeOperatorAddressParameters
+): Promise<ComputeOperatorAddressReturnType>
+```
+
+### Parameters
+
+- `publicClient` (PublicClient): The public client for reading blockchain state
+- `parameters` (ComputeOperatorAddressParameters):
+  - `factoryAddress` (Address): The PaymentOperator factory contract address
+  - `config` (OperatorConfig): The operator configuration object
+
+### Returns
+
+Promise\<Address\>: The computed operator contract address
+
+### Example
+
+```typescript
+import { computeOperatorAddress } from '@x402r/core/deploy'
+
+const address = await computeOperatorAddress(publicClient, {
+  factoryAddress: '0x...',
+  config: operatorConfig
+})
+
+console.log('Operator will be deployed at:', address)
+```
+
+---
+
+## Related Factory Functions
+
+The deploy module also exports factory functions for deploying operator components:
+
+### Fee Calculator
+
+- `deployFeeCalculator`: Deploy a StaticFeeCalculator contract
+- `computeFeeCalculatorAddress`: Compute fee calculator address
+
+### Escrow Period
+
+- `deployEscrowPeriod`: Deploy an EscrowPeriod contract
+- `computeEscrowPeriodAddress`: Compute escrow period address
+
+### Freeze
+
+- `deployFreeze`: Deploy a Freeze contract
+- `computeFreezeAddress`: Compute freeze contract address
+
+### Recorder Combinator
+
+- `deployRecorderCombinator`: Deploy a RecorderCombinator contract
+- `computeRecorderCombinatorAddress`: Compute recorder combinator address
+
+See the source code at `packages/core/src/deploy/factories.ts` for detailed signatures and parameters.

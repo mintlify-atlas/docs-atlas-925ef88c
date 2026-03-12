@@ -1,0 +1,173 @@
+---
+title: 'refundPostEscrow'
+description: 'Refund payment after funds have been captured from escrow'
+---
+
+## Function Signature
+
+```typescript
+async function refundPostEscrow(
+  walletClient: WalletClient,
+  parameters: RefundPostEscrowParameters
+): Promise<Hash>
+```
+
+## Description
+
+Refunds a payment after the funds have already been captured from escrow to the receiver. This action requires the receiver to have a sufficient allowance set for the token collector to transfer tokens back to the payer.
+
+Unlike `refundInEscrow`, which returns escrowed funds, this action pulls tokens from the receiver's wallet back to the payer, typically used for post-purchase refunds or chargebacks.
+
+## Parameters
+
+<ParamField path="walletClient" type="WalletClient" required>
+  Viem wallet client with an active account to sign and send the transaction
+</ParamField>
+
+<ParamField path="parameters" type="RefundPostEscrowParameters" required>
+  Configuration object for the post-escrow refund
+
+  <ParamField path="operatorAddress" type="Address" required>
+    Address of the payment operator contract
+  </ParamField>
+
+  <ParamField path="paymentInfo" type="PaymentInfo" required>
+    Payment information object matching the original authorization:
+    - `payer`: Address to refund tokens to
+    - `receiver`: Address to take refund from
+    - `token`: Address of the ERC20 token
+    - `startTime`: Timestamp when authorization began
+    - `escrowDuration`: Duration of the escrow period
+    - Additional fields as defined by the PaymentInfo type
+  </ParamField>
+
+  <ParamField path="amount" type="bigint" required>
+    Amount of tokens to refund
+  </ParamField>
+
+  <ParamField path="tokenCollector" type="Address" required>
+    Address of the token collector contract that will handle the token transfer
+  </ParamField>
+
+  <ParamField path="collectorData" type="Hex" required>
+    Encoded data to pass to the token collector for the refund transfer
+  </ParamField>
+</ParamField>
+
+## Returns
+
+<ResponseField name="hash" type="Hash">
+  Transaction hash of the refund transaction
+</ResponseField>
+
+## Example
+
+```typescript
+import { refundPostEscrow } from '@x402r/core'
+import { createWalletClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const walletClient = createWalletClient({
+  chain: mainnet,
+  transport: http(),
+})
+
+const paymentInfo = {
+  payer: '0x...',
+  receiver: '0x...',
+  token: '0x...', // USDC address
+  startTime: 1234567890,
+  escrowDuration: 86400 * 7, // 7 days
+  // ... other required fields
+}
+
+// Refund after funds have been captured
+const txHash = await refundPostEscrow(walletClient, {
+  operatorAddress: '0x...',
+  paymentInfo,
+  amount: 500000n, // 0.5 USDC partial refund
+  tokenCollector: '0x...',
+  collectorData: '0x',
+})
+
+console.log('Post-escrow refund transaction:', txHash)
+```
+
+## SDK Usage
+
+When using the x402r SDK client:
+
+```typescript
+import { createX402rClient } from '@x402r/sdk'
+
+const client = createX402rClient({
+  operatorAddress: '0x...',
+  chainId: 1,
+  walletClient,
+  publicClient,
+})
+
+const txHash = await client.payment.refundPostEscrow(
+  paymentInfo,
+  500000n,
+  tokenCollectorAddress,
+  collectorData
+)
+```
+
+## Approving Refund Allowance
+
+Before a post-escrow refund can be executed, the receiver must approve the token collector:
+
+```typescript
+import { approvePostEscrowRefund } from '@x402r/core'
+
+// Receiver approves refund allowance
+await client.payment.approvePostEscrowRefund(
+  tokenAddress,
+  1000000n // Approve up to 1 USDC for refunds
+)
+
+// Check current allowance
+const allowance = await client.payment.getPostEscrowRefundAllowance(
+  tokenAddress,
+  receiverAddress
+)
+```
+
+## Related Actions
+
+- [refund-in-escrow](/api/payment/refund-in-escrow) - Refund during escrow period
+- [charge](/api/payment/charge) - Capture funds from escrow
+- [get-amounts](/api/payment/get-amounts) - Get payment amounts
+
+## Use Cases
+
+- **Post-purchase refunds**: Refund after service delivery issues
+- **Partial refunds**: Return a portion of the payment
+- **Chargebacks**: Process refunds after funds have been received
+- **Return policies**: Implement product return workflows
+
+## Requirements
+
+- Escrow period must have ended
+- Funds must have been captured (via `charge` or `release`)
+- Receiver must have approved sufficient allowance for the token collector
+- Receiver must have sufficient token balance
+- Caller must have permission to execute post-escrow refunds
+
+## Difference from In-Escrow Refund
+
+- **refundInEscrow**: Returns funds from escrow contract (during escrow period)
+- **refundPostEscrow**: Returns funds from receiver's wallet (after capture)
+
+Use `refundPostEscrow` when funds have already been captured. For refunds before capture, use [refund-in-escrow](/api/payment/refund-in-escrow).
+
+## Error Handling
+
+This function will throw an error if:
+- Wallet client does not have an active account
+- Receiver has insufficient allowance approved
+- Receiver has insufficient token balance
+- Caller lacks permission to refund
+- Contract call fails or transaction reverts

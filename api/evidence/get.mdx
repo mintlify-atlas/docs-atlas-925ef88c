@@ -1,0 +1,104 @@
+---
+title: 'getEvidence'
+description: 'Retrieve a single evidence entry by index'
+---
+
+## Function Signature
+
+```typescript
+async function getEvidence(
+  publicClient: PublicClient,
+  parameters: GetEvidenceParameters
+): Promise<EvidenceEntry>
+```
+
+## Parameters
+
+<ParamField path="publicClient" type="PublicClient" required>
+  The Viem public client used to read from the blockchain.
+</ParamField>
+
+<ParamField path="parameters" type="GetEvidenceParameters" required>
+  The parameters for retrieving evidence.
+
+  <Expandable title="GetEvidenceParameters">
+    <ParamField path="contractAddress" type="Address" required>
+      The address of the RefundRequestEvidence contract.
+    </ParamField>
+
+    <ParamField path="paymentInfo" type="PaymentInfo" required>
+      The payment information struct identifying the specific payment.
+    </ParamField>
+
+    <ParamField path="nonce" type="bigint" required>
+      The nonce of the refund request.
+    </ParamField>
+
+    <ParamField path="index" type="bigint" required>
+      The zero-based index of the evidence entry to retrieve.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Returns
+
+<ResponseField name="evidenceEntry" type="EvidenceEntry">
+  The evidence entry at the specified index.
+
+  <Expandable title="EvidenceEntry">
+    <ResponseField name="submitter" type="Address">
+      The address of the account that submitted this evidence.
+    </ResponseField>
+
+    <ResponseField name="role" type="SubmitterRole">
+      The role of the submitter. Can be `0` (Payer), `1` (Receiver), or `2` (Arbiter).
+    </ResponseField>
+
+    <ResponseField name="timestamp" type="number">
+      The Unix timestamp when the evidence was submitted.
+    </ResponseField>
+
+    <ResponseField name="cid" type="string">
+      The IPFS Content Identifier (CID) pointing to the evidence data.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+```typescript
+import { createPublicClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+import { getEvidence } from '@x402r/core'
+
+const publicClient = createPublicClient({
+  chain: mainnet,
+  transport: http()
+})
+
+const evidence = await getEvidence(publicClient, {
+  contractAddress: '0x1234567890123456789012345678901234567890',
+  paymentInfo: {
+    // PaymentInfo struct fields
+  },
+  nonce: 1n,
+  index: 0n // Get the first evidence entry
+})
+
+console.log('Submitter:', evidence.submitter)
+console.log('Role:', evidence.role) // 0 = Payer, 1 = Receiver, 2 = Arbiter
+console.log('Timestamp:', new Date(evidence.timestamp * 1000))
+console.log('IPFS CID:', evidence.cid)
+```
+
+## Submitter Roles
+
+The `role` field in the returned evidence entry can have one of three values:
+
+- `0` - **Payer**: Evidence submitted by the payment sender
+- `1` - **Receiver**: Evidence submitted by the payment recipient
+- `2` - **Arbiter**: Evidence submitted by the dispute arbiter
+
+<Tip>
+  Use [`getEvidenceBatch`](/api/evidence/get-batch) to retrieve multiple evidence entries at once for better performance.
+</Tip>

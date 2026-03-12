@@ -1,0 +1,316 @@
+---
+title: Custom Extensions
+description: Extend the x402r client with custom action groups using .extend()
+---
+
+The x402r SDK supports a powerful extension system that allows you to add custom functionality and domain-specific abstractions on top of the base client.
+
+## Overview
+
+The `.extend()` method is inspired by viem's extension pattern. It allows you to:
+
+- Add custom namespaces with domain-specific methods
+- Compose multiple extensions together
+- Maintain full TypeScript type safety
+- Fill optional slots (escrow, freeze) when not configured in base client
+
+## Basic Extension
+
+Create a simple extension that adds a new namespace:
+
+```ts
+import { createX402r } from '@x402r/sdk'
+import type { PaymentInfo } from '@x402r/sdk'
+
+const x402r = createX402r({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x...',
+}).extend((client) => ({
+  // Add a custom 'utils' namespace
+  utils: {
+    async isPaymentComplete(paymentInfo: PaymentInfo): Promise<boolean> {
+      const amounts = await client.payment.getAmounts(paymentInfo)
+      return amounts.releasedAmount >= amounts.chargedAmount
+    },
+    
+    async getRefundablePercentage(paymentInfo: PaymentInfo): Promise<number> {
+      const amounts = await client.payment.getAmounts(paymentInfo)
+      if (amounts.chargedAmount === 0n) return 0
+      return Number((amounts.refundableAmount * 10000n) / amounts.chargedAmount) / 100
+    },
+  },
+}))
+
+// Use the extended client
+const isComplete = await x402r.utils.isPaymentComplete(paymentInfo)
+const refundablePercent = await x402r.utils.getRefundablePercentage(paymentInfo)
+
+console.log('Payment complete:', isComplete)
+console.log('Refundable:', refundablePercent, '%')
+```
+
+## Disputes Extension
+
+This example from the SDK README shows a complete dispute management system:
+
+```ts
+import { createX402r } from '@x402r/sdk'
+import type { PaymentInfo } from '@x402r/sdk'
+
+const x402r = createX402r({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x...',
+  refundRequestAddress: '0x...',
+}).extend((client) => ({
+  disputes: {
+    async submitEvidence(
+      paymentInfo: PaymentInfo,
+      nonce: bigint,
+      evidence: { name: string; description: string },
+      ipfsUpload: (data: string) => Promise<string>,
+    ) {
+      const cid = await ipfsUpload(JSON.stringify(evidence))
+      return client.evidence.submit(paymentInfo, nonce, cid)
+    },
+    
+    async resolve(
+      paymentInfo: PaymentInfo,
+      nonce: bigint,
+      ruling: 'refund' | 'deny'
+    ) {
+      if (ruling === 'refund') {
+        const { refundableAmount } = await client.payment.getAmounts(paymentInfo)
+        return client.payment.refundInEscrow(paymentInfo, refundableAmount)
+      }
+      return client.refund!.deny(paymentInfo, nonce)
+    },
+  },
+}))
+
+// Usage
+await x402r.disputes.submitEvidence(
+  paymentInfo,
+  0n,
+  { name: 'Missing delivery', description: 'Package never arrived' },
+  pinataUpload // Your IPFS upload function
+)
+
+await x402r.disputes.resolve(paymentInfo, 0n, 'refund')
+```
+
+## Plugin Extensions
+
+The SDK ships with plugin extensions for optional features:
+
+```ts
+import { createX402r } from '@x402r/sdk'
+import { escrowPeriodActions, freezeActions } from '@x402r/sdk/plugins'
+
+const x402r = createX402r({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x...',
+})
+  .extend(escrowPeriodActions('0xEscrowPeriod...'))
+  .extend(freezeActions('0xFreeze...'))
+
+// Now you can use escrow and freeze functionality
+const isInEscrow = await x402r.escrow!.isDuringEscrow(paymentInfo)
+const isFrozen = await x402r.freeze!.isFrozen(paymentInfo)
+```
+
+## Advanced Extension: Payment Batching
+
+Create an extension that handles batch operations:
+
+```ts
+import { createX402r } from '@x402r/sdk'
+import type { PaymentInfo } from '@x402r/sdk'
+import type { Hash } from 'viem'
+
+interface BatchPayment {
+  paymentInfo: PaymentInfo
+  amount: bigint
+}
+
+const x402r = createX402r({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x...',
+}).extend((client) => ({
+  batch: {
+    async releaseMultiple(payments: BatchPayment[]): Promise<Hash[]> {
+      const promises = payments.map(({ paymentInfo, amount }) =>
+        client.payment.release(paymentInfo, amount)
+      )
+      return Promise.all(promises)
+    },
+    
+    async getMultipleStates(paymentInfos: PaymentInfo[]) {
+      const promises = paymentInfos.map((info) =>
+        client.payment.getState(info)
+      )
+      return Promise.all(promises)
+    },
+    
+    async refundAll(paymentInfos: PaymentInfo[]): Promise<Hash[]> {
+      const results: Hash[] = []
+      
+      for (const paymentInfo of paymentInfos) {
+        const amounts = await client.payment.getAmounts(paymentInfo)
+        
+        if (amounts.refundableAmount > 0n) {
+          const txHash = await client.payment.refundInEscrow(
+            paymentInfo,
+            amounts.refundableAmount
+          )
+          results.push(txHash)
+        }
+      }
+      
+      return results
+    },
+  },
+}))
+
+// Usage
+const payments: BatchPayment[] = [
+  { paymentInfo: paymentInfo1, amount: 100000n },
+  { paymentInfo: paymentInfo2, amount: 200000n },
+]
+
+const txHashes = await x402r.batch.releaseMultiple(payments)
+console.log('Released payments:', txHashes)
+```
+
+## Analytics Extension
+
+Add analytics and reporting capabilities:
+
+```ts
+import { createX402r } from '@x402r/sdk'
+import type { PaymentInfo } from '@x402r/sdk'
+
+const x402r = createX402r({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x...',
+  refundRequestAddress: '0x...',
+}).extend((client) => ({
+  analytics: {
+    async getPaymentSummary(paymentInfo: PaymentInfo) {
+      const amounts = await client.payment.getAmounts(paymentInfo)
+      const [isAuthorized, authorizedAmount, chargedAmount] = 
+        await client.payment.getState(paymentInfo)
+      
+      return {
+        isAuthorized,
+        authorized: authorizedAmount,
+        charged: chargedAmount,
+        released: amounts.releasedAmount,
+        refunded: amounts.refundedAmount,
+        refundable: amounts.refundableAmount,
+        netSettled: amounts.releasedAmount - amounts.refundedAmount,
+        utilizationPercent: authorizedAmount > 0n
+          ? Number((chargedAmount * 10000n) / authorizedAmount) / 100
+          : 0,
+      }
+    },
+    
+    async getRefundStats(paymentInfo: PaymentInfo, nonce: bigint) {
+      const requestData = await client.refund!.get(paymentInfo, nonce)
+      const evidenceCount = await client.evidence.count(paymentInfo, nonce)
+      const cancelCount = await client.refund!.getCancelCount(paymentInfo, nonce)
+      
+      return {
+        status: requestData.status,
+        requestedAmount: requestData.amount,
+        evidenceCount,
+        cancelCount,
+        timestamp: requestData.timestamp,
+      }
+    },
+  },
+}))
+
+// Usage
+const summary = await x402r.analytics.getPaymentSummary(paymentInfo)
+console.log('Net settled:', summary.netSettled)
+console.log('Utilization:', summary.utilizationPercent, '%')
+
+const refundStats = await x402r.analytics.getRefundStats(paymentInfo, 0n)
+console.log('Refund status:', refundStats.status)
+```
+
+## Chaining Multiple Extensions
+
+Extensions can be chained together:
+
+```ts
+import { createX402r } from '@x402r/sdk'
+import { escrowPeriodActions } from '@x402r/sdk/plugins'
+
+const x402r = createX402r({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x...',
+  refundRequestAddress: '0x...',
+})
+  .extend(escrowPeriodActions('0xEscrow...'))
+  .extend((client) => ({
+    disputes: {
+      // ... dispute methods
+    },
+  }))
+  .extend((client) => ({
+    analytics: {
+      // ... analytics methods
+    },
+  }))
+  .extend((client) => ({
+    batch: {
+      // ... batch methods
+    },
+  }))
+
+// All extensions are available
+await x402r.escrow!.isDuringEscrow(paymentInfo)
+await x402r.disputes.submitEvidence(/* ... */)
+await x402r.analytics.getPaymentSummary(paymentInfo)
+await x402r.batch.releaseMultiple(payments)
+```
+
+## Extension Rules
+
+- **Cannot override base keys** — Extensions cannot replace `payment`, `refund`, `evidence`, etc.
+- **Can fill undefined slots** — If `escrow` is undefined, an extension can provide it
+- **Fully typed** — TypeScript infers all extension types automatically
+- **Access base client** — Extensions receive the base client as a parameter
+- **Chainable** — Multiple `.extend()` calls can be chained
+
+## Type Safety
+
+Extensions maintain full type safety:
+
+```ts
+const x402r = createX402r({ /* ... */ })
+  .extend((client) => ({
+    custom: {
+      myMethod: async (value: number) => value * 2,
+    },
+  }))
+
+// TypeScript knows about custom.myMethod
+const result = await x402r.custom.myMethod(5) // result is inferred as number
+
+// TypeScript error: myMethod expects a number
+// x402r.custom.myMethod('hello') // ❌
+```
+
+## Next Steps
+
+- Review [Client API](/api-reference/client)
+- Explore [Plugin System](/guides/plugins)
+- Learn about [Payment Actions](/api-reference/payment)

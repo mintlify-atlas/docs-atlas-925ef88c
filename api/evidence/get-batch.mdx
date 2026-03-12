@@ -1,0 +1,155 @@
+---
+title: 'getEvidenceBatch'
+description: 'Retrieve multiple evidence entries with pagination support'
+---
+
+## Function Signature
+
+```typescript
+async function getEvidenceBatch(
+  publicClient: PublicClient,
+  parameters: GetEvidenceBatchParameters
+): Promise<GetEvidenceBatchReturnType>
+```
+
+## Parameters
+
+<ParamField path="publicClient" type="PublicClient" required>
+  The Viem public client used to read from the blockchain.
+</ParamField>
+
+<ParamField path="parameters" type="GetEvidenceBatchParameters" required>
+  The parameters for retrieving a batch of evidence entries.
+
+  <Expandable title="GetEvidenceBatchParameters">
+    <ParamField path="contractAddress" type="Address" required>
+      The address of the RefundRequestEvidence contract.
+    </ParamField>
+
+    <ParamField path="paymentInfo" type="PaymentInfo" required>
+      The payment information struct identifying the specific payment.
+    </ParamField>
+
+    <ParamField path="nonce" type="bigint" required>
+      The nonce of the refund request.
+    </ParamField>
+
+    <ParamField path="offset" type="bigint" required>
+      The zero-based starting index for pagination.
+    </ParamField>
+
+    <ParamField path="count" type="bigint" required>
+      The maximum number of evidence entries to retrieve.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Returns
+
+<ResponseField name="result" type="GetEvidenceBatchReturnType">
+  An object containing the evidence entries and total count.
+
+  <Expandable title="GetEvidenceBatchReturnType">
+    <ResponseField name="entries" type="EvidenceEntry[]">
+      An array of evidence entries.
+
+      <Expandable title="EvidenceEntry">
+        <ResponseField name="submitter" type="Address">
+          The address of the account that submitted this evidence.
+        </ResponseField>
+
+        <ResponseField name="role" type="SubmitterRole">
+          The role of the submitter. Can be `0` (Payer), `1` (Receiver), or `2` (Arbiter).
+        </ResponseField>
+
+        <ResponseField name="timestamp" type="number">
+          The Unix timestamp when the evidence was submitted.
+        </ResponseField>
+
+        <ResponseField name="cid" type="string">
+          The IPFS Content Identifier (CID) pointing to the evidence data.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="total" type="bigint">
+      The total number of evidence entries available for this refund request.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example
+
+```typescript
+import { createPublicClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+import { getEvidenceBatch } from '@x402r/core'
+
+const publicClient = createPublicClient({
+  chain: mainnet,
+  transport: http()
+})
+
+const result = await getEvidenceBatch(publicClient, {
+  contractAddress: '0x1234567890123456789012345678901234567890',
+  paymentInfo: {
+    // PaymentInfo struct fields
+  },
+  nonce: 1n,
+  offset: 0n,
+  count: 10n // Get up to 10 entries
+})
+
+console.log(`Total evidence entries: ${result.total}`)
+console.log(`Retrieved: ${result.entries.length}`)
+
+result.entries.forEach((entry, index) => {
+  console.log(`\nEvidence #${index}:`)
+  console.log('  Submitter:', entry.submitter)
+  console.log('  Role:', entry.role) // 0 = Payer, 1 = Receiver, 2 = Arbiter
+  console.log('  Timestamp:', new Date(entry.timestamp * 1000))
+  console.log('  IPFS CID:', entry.cid)
+})
+```
+
+## Pagination Example
+
+```typescript
+// Fetch all evidence entries using pagination
+const pageSize = 10n
+let offset = 0n
+let allEntries = []
+
+while (true) {
+  const result = await getEvidenceBatch(publicClient, {
+    contractAddress: '0x1234567890123456789012345678901234567890',
+    paymentInfo: { /* ... */ },
+    nonce: 1n,
+    offset,
+    count: pageSize
+  })
+
+  allEntries.push(...result.entries)
+
+  // Check if we've retrieved all entries
+  if (offset + BigInt(result.entries.length) >= result.total) {
+    break
+  }
+
+  offset += pageSize
+}
+
+console.log(`Retrieved all ${allEntries.length} evidence entries`)
+```
+
+## Submitter Roles
+
+The `role` field in each evidence entry can have one of three values:
+
+- `0` - **Payer**: Evidence submitted by the payment sender
+- `1` - **Receiver**: Evidence submitted by the payment recipient
+- `2` - **Arbiter**: Evidence submitted by the dispute arbiter
+
+<Note>
+  This function is more efficient than calling [`getEvidence`](/api/evidence/get) multiple times when you need to retrieve several evidence entries.
+</Note>

@@ -1,0 +1,132 @@
+---
+title: 'authorize'
+description: 'Authorize a payment and collect tokens from the payer into escrow'
+---
+
+## Function Signature
+
+```typescript
+async function authorize(
+  walletClient: WalletClient,
+  parameters: AuthorizeParameters
+): Promise<Hash>
+```
+
+## Description
+
+Authorizes a payment by collecting tokens from the payer into the escrow contract. The authorized amount enters the escrow period, during which the payer can request a refund. After the escrow period ends, the receiver can capture the funds using the `charge` action.
+
+This action requires a wallet client with an active account and will submit a transaction to the blockchain.
+
+## Parameters
+
+<ParamField path="walletClient" type="WalletClient" required>
+  Viem wallet client with an active account to sign and send the transaction
+</ParamField>
+
+<ParamField path="parameters" type="AuthorizeParameters" required>
+  Configuration object for the authorization
+
+  <ParamField path="operatorAddress" type="Address" required>
+    Address of the payment operator contract
+  </ParamField>
+
+  <ParamField path="paymentInfo" type="PaymentInfo" required>
+    Payment information object containing:
+    - `payer`: Address of the account paying
+    - `receiver`: Address of the account receiving
+    - `token`: Address of the ERC20 token being transferred
+    - `startTime`: Timestamp when authorization begins
+    - `escrowDuration`: Duration of the escrow period in seconds
+    - Additional fields as defined by the PaymentInfo type
+  </ParamField>
+
+  <ParamField path="amount" type="bigint" required>
+    Amount of tokens to authorize (in token's smallest unit)
+  </ParamField>
+
+  <ParamField path="tokenCollector" type="Address" required>
+    Address of the token collector contract that will handle the token transfer
+  </ParamField>
+
+  <ParamField path="collectorData" type="Hex" required>
+    Encoded data to pass to the token collector for the transfer
+  </ParamField>
+</ParamField>
+
+## Returns
+
+<ResponseField name="hash" type="Hash">
+  Transaction hash of the authorization transaction
+</ResponseField>
+
+## Example
+
+```typescript
+import { authorize } from '@x402r/core'
+import { createWalletClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const walletClient = createWalletClient({
+  chain: mainnet,
+  transport: http(),
+})
+
+const paymentInfo = {
+  payer: '0x...',
+  receiver: '0x...',
+  token: '0x...', // USDC address
+  startTime: Math.floor(Date.now() / 1000),
+  escrowDuration: 86400 * 7, // 7 days
+  // ... other required fields
+}
+
+const txHash = await authorize(walletClient, {
+  operatorAddress: '0x...', // Payment operator address
+  paymentInfo,
+  amount: 1000000n, // 1 USDC (6 decimals)
+  tokenCollector: '0x...', // Token collector address
+  collectorData: '0x', // Collector-specific data
+})
+
+console.log('Authorization transaction:', txHash)
+```
+
+## SDK Usage
+
+When using the x402r SDK client, this action is available on the `payment` action group:
+
+```typescript
+import { createX402rClient } from '@x402r/sdk'
+
+const client = createX402rClient({
+  operatorAddress: '0x...',
+  chainId: 1,
+  walletClient,
+  publicClient,
+})
+
+const txHash = await client.payment.authorize(
+  paymentInfo,
+  1000000n,
+  tokenCollectorAddress,
+  collectorData
+)
+```
+
+## Related Actions
+
+- [charge](/api/payment/charge) - Capture authorized funds after escrow period
+- [release](/api/payment/release) - Release funds to receiver during escrow
+- [refund-in-escrow](/api/payment/refund-in-escrow) - Refund authorized funds during escrow
+- [get-state](/api/payment/get-state) - Query current payment state
+- [get-amounts](/api/payment/get-amounts) - Get capturable and refundable amounts
+
+## Error Handling
+
+This function will throw an error if:
+- Wallet client does not have an active account
+- Contract call fails (insufficient allowance, invalid parameters, etc.)
+- Transaction is reverted by the blockchain
+
+Errors are wrapped with context from the `wrapContractCall` utility for better debugging.

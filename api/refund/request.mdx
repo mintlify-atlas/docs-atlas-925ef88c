@@ -1,0 +1,110 @@
+---
+title: requestRefund
+description: Submit a refund request for a payment
+---
+
+## Overview
+
+The `requestRefund` function initiates a refund request for a specific payment. This is typically called by the payer to request a refund during the escrow period.
+
+## Signature
+
+```typescript
+async function requestRefund(
+  walletClient: WalletClient,
+  parameters: RequestRefundParameters
+): Promise<RequestRefundReturnType>
+```
+
+## Parameters
+
+<ParamField path="walletClient" type="WalletClient" required>
+  A viem wallet client with an active account to sign and submit the transaction.
+</ParamField>
+
+<ParamField path="parameters" type="RequestRefundParameters" required>
+  Configuration object containing the refund request details.
+
+  <ParamField path="parameters.contractAddress" type="Address" required>
+    The address of the SignatureRefundRequest contract.
+  </ParamField>
+
+  <ParamField path="parameters.paymentInfo" type="PaymentInfo" required>
+    The payment information object identifying the specific payment. This includes:
+    - `payer`: Address of the payer
+    - `receiver`: Address of the receiver
+    - `operator`: Address of the operator
+    - `token`: Token address for the payment
+    - `amount`: Total payment amount
+    - Other payment-specific fields
+  </ParamField>
+
+  <ParamField path="parameters.amount" type="bigint" required>
+    The amount being requested for refund (in token's smallest unit).
+  </ParamField>
+
+  <ParamField path="parameters.nonce" type="bigint" required>
+    A unique nonce for this refund request to prevent replay attacks.
+  </ParamField>
+</ParamField>
+
+## Returns
+
+<ResponseField name="hash" type="Hash">
+  The transaction hash of the submitted refund request.
+</ResponseField>
+
+## Example
+
+```typescript
+import { requestRefund } from 'x402r'
+import { createWalletClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const walletClient = createWalletClient({
+  chain: mainnet,
+  transport: http(),
+  account: '0x...', // Your account
+})
+
+const paymentInfo = {
+  payer: '0x1234...',
+  receiver: '0x5678...',
+  operator: '0x9abc...',
+  token: '0xdef0...',
+  amount: 1000000n,
+  // ... other fields
+}
+
+const txHash = await requestRefund(walletClient, {
+  contractAddress: '0xContractAddress...',
+  paymentInfo,
+  amount: 500000n, // Request partial refund
+  nonce: 1n,
+})
+
+console.log('Refund request submitted:', txHash)
+```
+
+## Notes
+
+- The wallet client must have an active account configured
+- The refund request can be for a partial or full amount
+- The nonce must be unique for each refund request
+- After submission, the request status will be `Pending` until approved, denied, refused, or cancelled
+- Typically used during the escrow period by the payer
+
+## Error Handling
+
+The function wraps contract calls with error handling. Common errors include:
+- Missing or invalid account on wallet client
+- Invalid payment info or nonce
+- Contract execution failures
+- Insufficient gas or network errors
+
+## Related Functions
+
+- [cancelRefundRequest](/api/refund/cancel) - Cancel a pending refund request
+- [approveRefundWithSignature](/api/refund/approve) - Approve a refund request with signature
+- [denyRefundRequest](/api/refund/deny) - Deny a refund request
+- [refuseRefundRequest](/api/refund/refuse) - Refuse a refund request

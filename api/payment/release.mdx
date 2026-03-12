@@ -1,0 +1,133 @@
+---
+title: 'release'
+description: 'Release authorized funds to the receiver during the escrow period'
+---
+
+## Function Signature
+
+```typescript
+async function release(
+  walletClient: WalletClient,
+  parameters: ReleaseParameters
+): Promise<Hash>
+```
+
+## Description
+
+Releases authorized funds from escrow to the receiver before the escrow period ends. Unlike `charge`, which can only be called after the escrow period, `release` allows the operator or authorized party to transfer funds early.
+
+This is useful for scenarios where the service has been delivered satisfactorily during the escrow period and both parties agree to complete the payment early.
+
+## Parameters
+
+<ParamField path="walletClient" type="WalletClient" required>
+  Viem wallet client with an active account to sign and send the transaction
+</ParamField>
+
+<ParamField path="parameters" type="ReleaseParameters" required>
+  Configuration object for releasing funds
+
+  <ParamField path="operatorAddress" type="Address" required>
+    Address of the payment operator contract
+  </ParamField>
+
+  <ParamField path="paymentInfo" type="PaymentInfo" required>
+    Payment information object matching the original authorization:
+    - `payer`: Address of the account that paid
+    - `receiver`: Address of the account receiving
+    - `token`: Address of the ERC20 token
+    - `startTime`: Timestamp when authorization began
+    - `escrowDuration`: Duration of the escrow period
+    - Additional fields as defined by the PaymentInfo type
+  </ParamField>
+
+  <ParamField path="amount" type="bigint" required>
+    Amount of tokens to release (must not exceed capturable amount)
+  </ParamField>
+</ParamField>
+
+## Returns
+
+<ResponseField name="hash" type="Hash">
+  Transaction hash of the release transaction
+</ResponseField>
+
+## Example
+
+```typescript
+import { release } from '@x402r/core'
+import { createWalletClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const walletClient = createWalletClient({
+  chain: mainnet,
+  transport: http(),
+})
+
+const paymentInfo = {
+  payer: '0x...',
+  receiver: '0x...',
+  token: '0x...', // USDC address
+  startTime: 1234567890,
+  escrowDuration: 86400 * 7, // 7 days
+  // ... other required fields
+}
+
+// Release funds during escrow period
+const txHash = await release(walletClient, {
+  operatorAddress: '0x...',
+  paymentInfo,
+  amount: 1000000n, // 1 USDC
+})
+
+console.log('Release transaction:', txHash)
+```
+
+## SDK Usage
+
+When using the x402r SDK client:
+
+```typescript
+import { createX402rClient } from '@x402r/sdk'
+
+const client = createX402rClient({
+  operatorAddress: '0x...',
+  chainId: 1,
+  walletClient,
+  publicClient,
+})
+
+const txHash = await client.payment.release(
+  paymentInfo,
+  1000000n
+)
+```
+
+## Related Actions
+
+- [authorize](/api/payment/authorize) - Authorize a payment into escrow
+- [charge](/api/payment/charge) - Capture funds after escrow period
+- [refund-in-escrow](/api/payment/refund-in-escrow) - Refund during escrow
+- [get-state](/api/payment/get-state) - Check payment state and escrow status
+- [get-amounts](/api/payment/get-amounts) - Get capturable amount
+
+## Use Cases
+
+- **Early settlement**: Release funds when service is completed satisfactorily
+- **Partial releases**: Release funds incrementally as milestones are met
+- **Dispute resolution**: Operator-mediated release after resolving issues
+
+## Requirements
+
+- Must be called during the escrow period (before `startTime + escrowDuration`)
+- Sufficient capturable amount must be available
+- Caller must have permission to release (typically operator or authorized party)
+- Payment must not be frozen
+
+## Error Handling
+
+This function will throw an error if:
+- Wallet client does not have an active account
+- Requested amount exceeds capturable balance
+- Caller lacks permission to release funds
+- Contract call fails or transaction reverts

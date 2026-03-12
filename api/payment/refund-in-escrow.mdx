@@ -1,0 +1,142 @@
+---
+title: 'refundInEscrow'
+description: 'Refund authorized payment while funds are still in escrow'
+---
+
+## Function Signature
+
+```typescript
+async function refundInEscrow(
+  walletClient: WalletClient,
+  parameters: RefundInEscrowParameters
+): Promise<Hash>
+```
+
+## Description
+
+Refunds authorized funds back to the payer while the payment is still in the escrow period. This action returns tokens from the escrow contract to the original payer.
+
+This is typically used when a service cannot be delivered, when the payer requests a refund during the escrow period, or when conditions for the payment are not met.
+
+## Parameters
+
+<ParamField path="walletClient" type="WalletClient" required>
+  Viem wallet client with an active account to sign and send the transaction
+</ParamField>
+
+<ParamField path="parameters" type="RefundInEscrowParameters" required>
+  Configuration object for the refund
+
+  <ParamField path="operatorAddress" type="Address" required>
+    Address of the payment operator contract
+  </ParamField>
+
+  <ParamField path="paymentInfo" type="PaymentInfo" required>
+    Payment information object matching the original authorization:
+    - `payer`: Address of the account that paid
+    - `receiver`: Address of the account that was to receive
+    - `token`: Address of the ERC20 token
+    - `startTime`: Timestamp when authorization began
+    - `escrowDuration`: Duration of the escrow period
+    - Additional fields as defined by the PaymentInfo type
+  </ParamField>
+
+  <ParamField path="amount" type="bigint" required>
+    Amount of tokens to refund (must not exceed refundable amount)
+  </ParamField>
+</ParamField>
+
+## Returns
+
+<ResponseField name="hash" type="Hash">
+  Transaction hash of the refund transaction
+</ResponseField>
+
+## Example
+
+```typescript
+import { refundInEscrow } from '@x402r/core'
+import { createWalletClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+
+const walletClient = createWalletClient({
+  chain: mainnet,
+  transport: http(),
+})
+
+const paymentInfo = {
+  payer: '0x...',
+  receiver: '0x...',
+  token: '0x...', // USDC address
+  startTime: 1234567890,
+  escrowDuration: 86400 * 7, // 7 days
+  // ... other required fields
+}
+
+// Refund during escrow period
+const txHash = await refundInEscrow(walletClient, {
+  operatorAddress: '0x...',
+  paymentInfo,
+  amount: 1000000n, // 1 USDC
+})
+
+console.log('Refund transaction:', txHash)
+```
+
+## SDK Usage
+
+When using the x402r SDK client:
+
+```typescript
+import { createX402rClient } from '@x402r/sdk'
+
+const client = createX402rClient({
+  operatorAddress: '0x...',
+  chainId: 1,
+  walletClient,
+  publicClient,
+})
+
+const txHash = await client.payment.refundInEscrow(
+  paymentInfo,
+  1000000n
+)
+```
+
+## Related Actions
+
+- [authorize](/api/payment/authorize) - Authorize a payment into escrow
+- [refund-post-escrow](/api/payment/refund-post-escrow) - Refund after funds are captured
+- [get-state](/api/payment/get-state) - Check payment state
+- [get-amounts](/api/payment/get-amounts) - Get refundable amount
+- [release](/api/payment/release) - Release funds to receiver instead
+
+## Use Cases
+
+- **Service cancellation**: Refund when service cannot be delivered
+- **Payer request**: Honor refund requests during escrow period
+- **Failed conditions**: Refund when payment conditions are not met
+- **Dispute resolution**: Refund as part of dispute settlement
+
+## Requirements
+
+- Must be called during the escrow period (before escrow period ends)
+- Sufficient refundable amount must be available
+- Caller must have permission to refund (typically operator or authorized party)
+- Payment must not be frozen
+
+## Difference from Post-Escrow Refund
+
+- **refundInEscrow**: Returns funds still held in escrow contract
+- **refundPostEscrow**: Returns funds after they've been captured by receiver
+
+Use `refundInEscrow` when funds haven't been released or charged yet. For refunds after capture, use [refund-post-escrow](/api/payment/refund-post-escrow).
+
+## Error Handling
+
+This function will throw an error if:
+- Wallet client does not have an active account
+- Escrow period has already ended
+- Requested amount exceeds refundable balance
+- Caller lacks permission to refund
+- Contract call fails or transaction reverts

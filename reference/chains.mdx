@@ -1,0 +1,103 @@
+---
+title: Supported Chains
+description: Networks, contract addresses, and CAIP-2 identifiers
+---
+
+## Supported Networks
+
+The x402r protocol is deployed on the following EVM chains:
+
+### Mainnets
+
+- **Ethereum** (Chain ID: `1`)
+- **Base** (Chain ID: `8453`)
+- **Polygon** (Chain ID: `137`)
+- **Arbitrum One** (Chain ID: `42161`)
+- **Optimism** (Chain ID: `10`)
+- **Celo** (Chain ID: `42220`)
+- **Avalanche C-Chain** (Chain ID: `43114`)
+- **Monad** (Chain ID: `143`)
+- **Linea** (Chain ID: `59144`)
+
+### Testnets
+
+- **Base Sepolia** (Chain ID: `84532`)
+- **Ethereum Sepolia** (Chain ID: `11155111`)
+
+## CREATE3 Contract Addresses
+
+All contracts share the same CREATE3 addresses on every supported chain.
+
+### Core Protocol
+
+| Contract | Address |
+| --- | --- |
+| AuthCaptureEscrow | `0xe050bB89eD43BB02d71343063824614A7fb80B77` |
+| TokenCollector | `0xcE66Ab399EDA513BD12760b6427C87D6602344a7` |
+| ProtocolFeeConfig | `0x7e868A42a458fa2443b6259419aA6A8a161E08c8` |
+| USDCTvlLimit | `0x0F1F26719219CfAdC8a1C80D2216098A0534a091` |
+| ArbiterRegistry | `0x1c2d7d5978d46a943FA98aC9a649519C1424FB3e` |
+| ReceiverRefundCollector | `0xE5500a38BE45a6C598420fbd7867ac85EC451A07` |
+| RefundRequestEvidence | `0xF97aAB816b7cbe53025454ad05b03cf5C361F1BA` |
+
+### Factories
+
+| Factory | Address |
+| --- | --- |
+| PaymentOperator | `0x4D9BC2Ba2D0d9AFb6B63E3afBbfC95143E6E8Da9` |
+| EscrowPeriod | `0x15DB06aADEB3a39D47756Bf864a173cc48bafe24` |
+| Freeze | `0xdf129EFFE040c3403aca597c0F0bb704859a78Fd` |
+| StaticFeeCalculator | `0x6CDdBdB46e2d7Caae31A6b213B59a1412d7f16Ac` |
+| StaticAddressCondition | `0xfB09350b200fda7dDd06565F5296A0CA625311d5` |
+| AndCondition | `0x5a1F3b6d030D25a2B86aAE469Ae1216ef3be308D` |
+| OrCondition | `0x101B2fac8cdC6348E541A0ef087275dA62AA13A0` |
+| NotCondition | `0x1D58f97843579356863d3393ebe24feEd76ceefF` |
+| RecorderCombinator | `0xACf2b5e21CFc14135C9cD43ebE96a481F184C1A1` |
+| SignatureCondition | `0x669B4930f9E72884725F5C7D837Ab9517eA3040f` |
+| SignatureRefundRequest | `0x45af78aaBC0A0dD70f16381CfD6D657Ab441B7a0` |
+
+### Condition Singletons
+
+| Condition | Address |
+| --- | --- |
+| Payer | `0x33F5F1154A02d0839266EFd23Fd3b85a3505bB4B` |
+| Receiver | `0xF41974A853940Ff4c18d46B6565f973c1180E171` |
+| AlwaysTrue | `0xb295df7E7f786fd84D614AB26b1f2e86026C3483` |
+
+## Network Identifiers
+
+The SDK uses CAIP-2 format for network identifiers:
+
+```ts
+import { toNetworkId, fromNetworkId } from '@x402r/sdk'
+
+const networkId = toNetworkId(8453) // "eip155:8453"
+const chainId = fromNetworkId('eip155:8453') // 8453
+```
+
+### Examples
+
+| Chain | Network ID |
+| --- | --- |
+| Ethereum | `eip155:1` |
+| Base | `eip155:8453` |
+| Polygon | `eip155:137` |
+| Arbitrum One | `eip155:42161` |
+| Optimism | `eip155:10` |
+| Base Sepolia | `eip155:84532` |
+
+## Checking Chain Support
+
+```ts
+import { isSupportedChain, getChainConfig } from '@x402r/sdk'
+
+if (isSupportedChain(8453)) {
+  const config = getChainConfig(8453)
+  console.log(config.name) // "Base"
+  console.log(config.usdc) // USDC token address on Base
+}
+```
+
+## Registry Reference
+
+The complete chain registry is available in [`packages/core/src/config/index.ts`](https://github.com/BackTrackCo/x402r-sdk/blob/main/packages/core/src/config/index.ts).

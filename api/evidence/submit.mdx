@@ -1,0 +1,83 @@
+---
+title: 'submitEvidence'
+description: 'Submit evidence for a refund request dispute'
+---
+
+## Function Signature
+
+```typescript
+async function submitEvidence(
+  walletClient: WalletClient,
+  parameters: SubmitEvidenceParameters
+): Promise<Hash>
+```
+
+## Parameters
+
+<ParamField path="walletClient" type="WalletClient" required>
+  The Viem wallet client used to sign and submit the transaction. Must have an account configured.
+</ParamField>
+
+<ParamField path="parameters" type="SubmitEvidenceParameters" required>
+  The parameters for submitting evidence.
+
+  <Expandable title="SubmitEvidenceParameters">
+    <ParamField path="contractAddress" type="Address" required>
+      The address of the RefundRequestEvidence contract.
+    </ParamField>
+
+    <ParamField path="paymentInfo" type="PaymentInfo" required>
+      The payment information struct identifying the specific payment.
+    </ParamField>
+
+    <ParamField path="nonce" type="bigint" required>
+      The nonce of the refund request for which evidence is being submitted.
+    </ParamField>
+
+    <ParamField path="cid" type="string" required>
+      The IPFS Content Identifier (CID) pointing to the evidence data.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Returns
+
+<ResponseField name="hash" type="Hash">
+  The transaction hash of the submitted evidence transaction.
+</ResponseField>
+
+## Example
+
+```typescript
+import { createWalletClient, http } from 'viem'
+import { mainnet } from 'viem/chains'
+import { submitEvidence } from '@x402r/core'
+
+const walletClient = createWalletClient({
+  chain: mainnet,
+  transport: http(),
+  account: '0x...'
+})
+
+const txHash = await submitEvidence(walletClient, {
+  contractAddress: '0x1234567890123456789012345678901234567890',
+  paymentInfo: {
+    // PaymentInfo struct fields
+  },
+  nonce: 1n,
+  cid: 'QmXyZ...' // IPFS CID containing evidence
+})
+
+console.log('Evidence submitted:', txHash)
+```
+
+## Error Handling
+
+This function will throw an error if:
+- The wallet client does not have an account configured
+- The transaction fails or is reverted
+- Invalid parameters are provided
+
+<Note>
+  The evidence content should be stored on IPFS before calling this function. The `cid` parameter should reference that IPFS content.
+</Note>

@@ -1,0 +1,267 @@
+---
+title: 'Types'
+description: 'Core TypeScript types for the x402r protocol'
+---
+
+## Overview
+
+The types module exports TypeScript interfaces derived directly from Solidity ABIs. This ensures type safety and compatibility with on-chain contracts.
+
+## Core Types
+
+### PaymentInfo
+
+The central data structure representing a payment in the x402r protocol.
+
+```ts
+import type { PaymentInfo } from '@x402r/core/types'
+
+interface PaymentInfo {
+  operator: Address        // Operator contract address
+  payer: Address          // Payer address (can be zero for payer-agnostic)
+  receiver: Address       // Receiver address
+  token: Address          // Payment token address (e.g., USDC)
+  maxAmount: bigint       // Maximum payment amount
+  preApprovalExpiry: number   // Pre-approval expiry (also ERC-3009 validBefore)
+  authorizationExpiry: number // Authorization expiry timestamp
+  refundExpiry: number        // Refund request expiry timestamp
+  minFeeBps: number       // Minimum fee in basis points
+  maxFeeBps: number       // Maximum fee in basis points
+  feeReceiver: Address    // Fee recipient address
+  salt: bigint           // Unique salt for payment identification
+}
+```
+
+**Derived from:** `AuthCaptureEscrow.PaymentInfo` Solidity struct
+
+**Key Properties:**
+- `operator` — The operator contract that manages this payment
+- `payer` — Can be `address(0)` for payer-agnostic payments
+- `receiver` — Must be non-zero
+- `maxAmount` — Maximum amount that can be authorized
+- `preApprovalExpiry` — Doubles as ERC-3009 `validBefore` parameter
+- Expiry fields of `0` mean "not used"
+- Fee amounts in basis points (100 = 1%)
+
+### OperatorConfig
+
+Configuration for a payment operator, defining conditions and recorders for each operation.
+
+```ts
+import type { OperatorConfig } from '@x402r/core/types'
+
+interface OperatorConfig {
+  feeRecipient: Address           // Operator fee recipient
+  feeCalculator: Address          // Fee calculator contract
+  authorizeCondition: Address     // Condition for authorize()
+  authorizeRecorder: Address      // Recorder for authorize()
+  chargeCondition: Address        // Condition for charge()
+  chargeRecorder: Address         // Recorder for charge()
+  releaseCondition: Address       // Condition for release()
+  releaseRecorder: Address        // Recorder for release()
+  refundInEscrowCondition: Address    // Condition for in-escrow refunds
+  refundInEscrowRecorder: Address     // Recorder for in-escrow refunds
+  refundPostEscrowCondition: Address  // Condition for post-escrow refunds
+  refundPostEscrowRecorder: Address   // Recorder for post-escrow refunds
+}
+```
+
+**Derived from:** `PaymentOperatorFactory.deployOperator` config parameter
+
+**Key Properties:**
+- **Conditions** — Contracts that determine if an operation is allowed
+- **Recorders** — Contracts that record operation metadata
+- Use `address(0)` to disable a condition or recorder
+- Each operation (authorize, charge, release, refund) has its own condition/recorder pair
+
+### ConditionConfig
+
+Configuration for deploying a condition contract.
+
+```ts
+import type { ConditionConfig } from '@x402r/core/types'
+
+type ConditionConfig = {
+  condition: Address
+  recorder: Address
+}
+```
+
+**Derived from:** `PaymentOperator` constructor's `_conditions` parameter
+
+**Usage:**
+- Pairs a condition contract with an optional recorder
+- Used when deploying operators with custom conditions
+
+## Action Parameter Types
+
+All action functions export their parameter and return types:
+
+```ts
+import type {
+  GetPaymentStateParameters,
+  GetPaymentStateReturnType,
+  AuthorizeParameters,
+  AuthorizeReturnType,
+} from '@x402r/core/actions'
+```
+
+### Common Parameter Patterns
+
+Most actions follow these patterns:
+
+**Read actions:**
+```ts
+interface ReadActionParameters {
+  operatorAddress: Address
+  chainId: number
+  // ... other parameters
+}
+```
+
+**Write actions:**
+```ts
+interface WriteActionParameters {
+  operatorAddress: Address
+  // ... operation-specific parameters
+}
+```
+
+## Deploy Types
+
+Types for deploying protocol components:
+
+```ts
+import type {
+  DeployResult,
+  MarketplaceOperatorOptions,
+  MarketplaceOperatorDeployment,
+  ArbiterSetupOptions,
+  ArbiterSetupDeployment,
+} from '@x402r/core/deploy'
+
+interface DeployResult {
+  address: Address
+  isNew: boolean
+  hash: Hash | null
+}
+```
+
+## Config Types
+
+Types for chain configuration:
+
+```ts
+import type {
+  X402rChainConfig,
+  SupportedChainId,
+  FactoryAddresses,
+  ConditionSingletonAddresses,
+} from '@x402r/core/config'
+
+interface X402rChainConfig {
+  name: string
+  chainId: number
+  authCaptureEscrow: Address
+  tokenCollector: Address
+  protocolFeeConfig: Address
+  usdcTvlLimit: Address
+  arbiterRegistry: Address
+  receiverRefundCollector: Address
+  usdc: Address
+  refundRequestEvidence: Address
+  factories: FactoryAddresses
+  conditions: ConditionSingletonAddresses
+}
+```
+
+## Payment Types
+
+Types for payment utilities:
+
+```ts
+import type {
+  ComputePaymentInfoHashReturnType,
+  ComputeEscrowNonceReturnType,
+  ToPaymentInfoReturnType,
+} from '@x402r/core/payment'
+
+// All return `0x${string}` (Hex)
+type ComputePaymentInfoHashReturnType = Hex
+type ComputeEscrowNonceReturnType = Hex
+type ToPaymentInfoReturnType = PaymentInfo
+```
+
+## Type Derivation
+
+All protocol types are derived from contract ABIs using viem's `AbiParameterToPrimitiveType`:
+
+```ts
+import type { AbiParameterToPrimitiveType } from 'viem'
+import type { paymentOperatorAbi } from '../abis/generated.js'
+
+type AuthorizeFn = Extract<
+  (typeof paymentOperatorAbi)[number],
+  { type: 'function'; name: 'authorize' }
+>
+
+export type PaymentInfo = AbiParameterToPrimitiveType<AuthorizeFn['inputs'][0]>
+```
+
+This ensures types always match the on-chain contracts.
+
+## Type Mapping
+
+Solidity to TypeScript type mappings:
+
+| Solidity | TypeScript |
+|----------|------------|
+| `address` | `` `0x${string}` `` (Address) |
+| `uint8` - `uint48` | `number` |
+| `uint56` - `uint256` | `bigint` |
+| `bytes32` | `` `0x${string}` `` (Hex) |
+| `bool` | `boolean` |
+
+## Usage Example
+
+```ts
+import type { PaymentInfo } from '@x402r/core/types'
+import { validatePaymentInfo } from '@x402r/core/payment'
+import { getPaymentState } from '@x402r/core/actions'
+
+const paymentInfo: PaymentInfo = {
+  operator: '0x...',
+  payer: '0x...',
+  receiver: '0x...',
+  token: '0x...',
+  maxAmount: 1000000n,
+  preApprovalExpiry: 0,
+  authorizationExpiry: Math.floor(Date.now() / 1000) + 3600,
+  refundExpiry: 0,
+  minFeeBps: 0,
+  maxFeeBps: 500,
+  feeReceiver: '0x...',
+  salt: 0n,
+}
+
+// Validate before use
+validatePaymentInfo(paymentInfo)
+
+// Use with actions
+const state = await getPaymentState(publicClient, {
+  operatorAddress,
+  chainId: 8453,
+  paymentInfo,
+})
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Actions" icon="bolt" href="/core/actions">
+    Use types with action functions
+  </Card>
+  <Card title="Payment Utils" icon="calculator" href="/core/payment-utils">
+    Validate and hash PaymentInfo
+  </Card>
+</CardGroup>

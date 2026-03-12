@@ -1,0 +1,391 @@
+---
+title: 'Role Presets'
+description: 'Type-narrowed clients for payers, merchants, and arbiters'
+---
+
+Role presets provide type-narrowed clients that expose only the methods relevant to each participant role in the x402r protocol.
+
+<Warning>
+  Role presets provide **type narrowing only** — they are a developer experience improvement, not a security boundary. On-chain permissions are enforced by the operator contract via `canExecute()` condition checks.
+</Warning>
+
+## Available Presets
+
+The SDK ships with three role-specific client factories:
+
+```typescript
+import {
+  createPayerClient,
+  createMerchantClient,
+  createArbiterClient,
+} from '@x402r/sdk'
+```
+
+All three require a `walletClient` for write operations.
+
+## Payer Client
+
+```typescript
+import { createPayerClient } from '@x402r/sdk'
+
+const payer = createPayerClient({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x…',
+})
+```
+
+### Available Actions
+
+**payment** (read-only):
+- `getState(paymentInfo)` — Check payment state
+- `getAmounts(paymentInfo)` — Get payment amounts
+
+**refund** (if configured):
+- `request(paymentInfo, amount, nonce)` — Create refund request
+- `cancel(paymentInfo, nonce)` — Cancel pending request
+- `get()`, `getByKey()`, `getStatus()`, `has()` — Read operations
+- `getStoredPaymentInfo()` — Retrieve payment info
+- `getPayerRequests()` — List own requests
+- `getCancelCount()`, `getCancelledAmount()` — Cancellation info
+
+**evidence** (full access):
+- All evidence submission and retrieval methods
+
+**escrow** (read-only, if configured):
+- `isDuringEscrow(paymentInfo)`
+- `getAuthorizationTime(paymentInfo)`
+- `getDuration()`
+
+**freeze** (read-only, if configured):
+- `isFrozen(paymentInfo)` — Check freeze status only
+
+**operator** (limited):
+- `getConfig()` — Read operator configuration
+- `getFeeAddresses()` — Get fee addresses
+
+**watch** (full access):
+- All event watching methods
+
+### Example Usage
+
+```typescript
+const payer = createPayerClient(config)
+
+// Can read payment state
+const amounts = await payer.payment.getAmounts(paymentInfo)
+
+// Can submit refund requests
+await payer.refund!.request(paymentInfo, amounts.refundableAmount, 0n)
+
+// Can submit evidence
+await payer.evidence.submit(paymentInfo, 0n, evidenceCID)
+
+// CANNOT charge or release (type error)
+// payer.payment.charge(…) // ❌ Property 'charge' does not exist
+```
+
+### Type Definition
+
+From types.ts:230-266:
+
+```typescript
+export interface PayerClient {
+  readonly config: ResolvedWriteConfig
+  readonly payment: Pick<PaymentActions, 'getState' | 'getAmounts'>
+  readonly escrow:
+    | Pick<EscrowActions, 'isDuringEscrow' | 'getAuthorizationTime' | 'getDuration'>
+    | undefined
+  readonly refund:
+    | Pick<RefundActions,
+        | 'request'
+        | 'cancel'
+        | 'get'
+        | 'getByKey'
+        | 'getStatus'
+        | 'has'
+        | 'getStoredPaymentInfo'
+        | 'getPayerRequests'
+        | 'getCancelCount'
+        | 'getCancelledAmount'
+      >
+    | undefined
+  readonly evidence: EvidenceActions
+  readonly freeze: Pick<FreezeActions, 'isFrozen'> | undefined
+  readonly operator: Pick<OperatorActions, 'getConfig' | 'getFeeAddresses'>
+  readonly watch: WatchActions
+  canExecute(slot: ConditionSlot, paymentInfo: PaymentInfo, amount: bigint): Promise<boolean>
+  extend<const T extends Record<string, unknown>>(fn: (client: X402r) => T): Prettify<this & T>
+}
+```
+
+## Merchant Client
+
+```typescript
+import { createMerchantClient } from '@x402r/sdk'
+
+const merchant = createMerchantClient({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x…',
+})
+```
+
+### Available Actions
+
+**payment** (full access):
+- All payment lifecycle methods: `authorize`, `charge`, `release`, `refundInEscrow`, `refundPostEscrow`, etc.
+
+**refund** (if configured):
+- `refuse(paymentInfo, nonce)` — Merchant refuses request
+- `get()`, `getByKey()`, `getStatus()`, `has()` — Read operations
+- `getStoredPaymentInfo()` — Retrieve payment info
+- `getReceiverRequests()` — List requests for received payments
+- `getCancelCount()`, `getCancelledAmount()` — Cancellation info
+
+**evidence** (full access):
+- All evidence submission and retrieval methods
+
+**escrow** (read-only, if configured):
+- `isDuringEscrow()`, `getAuthorizationTime()`, `getDuration()`
+
+**freeze** (read-only, if configured):
+- `isFrozen(paymentInfo)` — Check freeze status only
+
+**operator** (full access):
+- All operator configuration and fee methods
+
+**watch** (full access):
+- All event watching methods
+
+### Example Usage
+
+```typescript
+const merchant = createMerchantClient(config)
+
+// Full payment control
+await merchant.payment.charge(paymentInfo, amount, collector, data)
+await merchant.payment.release(paymentInfo, amount)
+
+// Can refuse refund requests
+await merchant.refund!.refuse(paymentInfo, 0n)
+
+// Can manage fees
+await merchant.operator.distributeFees(tokenAddress)
+
+// CANNOT create refund requests (type error)
+// merchant.refund!.request(…) // ❌ Property 'request' does not exist
+```
+
+### Type Definition
+
+From types.ts:268-303:
+
+```typescript
+export interface MerchantClient {
+  readonly config: ResolvedWriteConfig
+  readonly payment: PaymentActions
+  readonly escrow:
+    | Pick<EscrowActions, 'isDuringEscrow' | 'getAuthorizationTime' | 'getDuration'>
+    | undefined
+  readonly refund:
+    | Pick<RefundActions,
+        | 'refuse'
+        | 'get'
+        | 'getByKey'
+        | 'getStatus'
+        | 'has'
+        | 'getStoredPaymentInfo'
+        | 'getReceiverRequests'
+        | 'getCancelCount'
+        | 'getCancelledAmount'
+      >
+    | undefined
+  readonly evidence: EvidenceActions
+  readonly freeze: Pick<FreezeActions, 'isFrozen'> | undefined
+  readonly operator: OperatorActions
+  readonly watch: WatchActions
+  canExecute(slot: ConditionSlot, paymentInfo: PaymentInfo, amount: bigint): Promise<boolean>
+  extend<const T extends Record<string, unknown>>(fn: (client: X402r) => T): Prettify<this & T>
+}
+```
+
+## Arbiter Client
+
+```typescript
+import { createArbiterClient } from '@x402r/sdk'
+
+const arbiter = createArbiterClient({
+  publicClient,
+  walletClient,
+  operatorAddress: '0x…',
+  freezeAddress: '0xFreeze…', // Often required for arbiters
+})
+```
+
+### Available Actions
+
+**payment** (read-only):
+- `getState(paymentInfo)` — Check payment state
+- `getAmounts(paymentInfo)` — Get payment amounts
+
+**refund** (if configured):
+- `deny(paymentInfo, nonce)` — Arbiter denies request
+- `approveWithSignature(paymentInfo, nonce, amount, expiry, signature)` — Approve with signature
+- `get()`, `getByKey()`, `getStatus()`, `has()` — Read operations
+- `getStoredPaymentInfo()` — Retrieve payment info
+- `getOperatorRequests()` — List operator's requests
+- `getCancelCount()`, `getCancelledAmount()` — Cancellation info
+
+**evidence** (full access):
+- All evidence submission and retrieval methods
+
+**escrow** (read-only, if configured):
+- `isDuringEscrow()`, `getAuthorizationTime()`, `getDuration()`
+
+**freeze** (full access, if configured):
+- `freeze(paymentInfo)` — Freeze payment
+- `unfreeze(paymentInfo)` — Unfreeze payment
+- `isFrozen(paymentInfo)` — Check status
+
+**operator** (limited):
+- `getConfig()` — Read operator configuration
+- `getFeeAddresses()` — Get fee addresses
+
+**watch** (full access):
+- All event watching methods
+
+### Example Usage
+
+```typescript
+const arbiter = createArbiterClient(config)
+
+// Freeze payment during investigation
+await arbiter.freeze!.freeze(paymentInfo)
+
+// Review evidence
+const evidence = await arbiter.evidence.getBatch(paymentInfo, 0n, 0n, 10n)
+
+// Deny refund request
+await arbiter.refund!.deny(paymentInfo, 0n)
+
+// Unfreeze after resolution
+await arbiter.freeze!.unfreeze(paymentInfo)
+
+// CANNOT charge or release (type error)
+// arbiter.payment.charge(…) // ❌ Property 'charge' does not exist
+```
+
+### Type Definition
+
+From types.ts:305-341:
+
+```typescript
+export interface ArbiterClient {
+  readonly config: ResolvedWriteConfig
+  readonly payment: Pick<PaymentActions, 'getState' | 'getAmounts'>
+  readonly escrow:
+    | Pick<EscrowActions, 'isDuringEscrow' | 'getAuthorizationTime' | 'getDuration'>
+    | undefined
+  readonly refund:
+    | Pick<RefundActions,
+        | 'deny'
+        | 'approveWithSignature'
+        | 'get'
+        | 'getByKey'
+        | 'getStatus'
+        | 'has'
+        | 'getStoredPaymentInfo'
+        | 'getOperatorRequests'
+        | 'getCancelCount'
+        | 'getCancelledAmount'
+      >
+    | undefined
+  readonly evidence: EvidenceActions
+  readonly freeze: FreezeActions | undefined
+  readonly operator: Pick<OperatorActions, 'getConfig' | 'getFeeAddresses'>
+  readonly watch: WatchActions
+  canExecute(slot: ConditionSlot, paymentInfo: PaymentInfo, amount: bigint): Promise<boolean>
+  extend<const T extends Record<string, unknown>>(fn: (client: X402r) => T): Prettify<this & T>
+}
+```
+
+## Implementation Details
+
+All three preset factories are thin wrappers around `createX402r()` with runtime validation:
+
+```typescript
+// From presets.ts:16-22
+export function createPayerClient(config: X402rConfig): PayerClient {
+  if (!config.walletClient) {
+    throw new ValidationError('walletClient is required for createPayerClient')
+  }
+  return createX402r(config) as unknown as PayerClient
+}
+```
+
+The same pattern applies to `createMerchantClient` and `createArbiterClient` (presets.ts:30 and presets.ts:46).
+
+<Info>
+  The type cast is required because `.extend()` returns types scoped to the full `X402r` interface. The narrowed client types re-scope `.extend()` to return the narrowed type.
+</Info>
+
+## Extending Role Presets
+
+All role presets support `.extend()` with properly scoped return types:
+
+```typescript
+const payer = createPayerClient(config)
+  .extend((client) => ({
+    disputes: {
+      submitWithEvidence: async (paymentInfo: PaymentInfo, evidence: string) => {
+        const cid = await uploadToIPFS(evidence)
+        await client.evidence.submit(paymentInfo, 0n, cid)
+        return client.refund!.request(paymentInfo, amount, 0n)
+      },
+    },
+  }))
+
+// Extended namespace is now available
+await payer.disputes.submitWithEvidence(paymentInfo, evidenceData)
+
+// Original narrowing is preserved
+await payer.payment.getAmounts(paymentInfo) // ✅
+// payer.payment.charge(…) // ❌ Still doesn't exist
+```
+
+## When to Use Presets
+
+**Use role presets when:**
+- Building role-specific UIs (payer dashboard, merchant portal, arbiter panel)
+- You want TypeScript to enforce role boundaries at compile time
+- Team members work on different parts of the system and need clear interfaces
+
+**Use generic `createX402r()` when:**
+- Building admin tools that need full access
+- A single wallet performs multiple roles
+- You need maximum flexibility
+
+## Security Considerations
+
+<Warning>
+  **Critical:** Role presets do NOT enforce permissions on-chain. They only provide type safety.
+  
+  A malicious actor can:
+  1. Cast a `PayerClient` back to `X402r` in JavaScript
+  2. Call any method directly via ABI encoding
+  3. Interact with contracts without using the SDK
+  
+  **Always** rely on operator contract `canExecute()` checks for security. The SDK's role presets are a developer experience feature, not a security boundary.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Action Groups" icon="layer-group" href="/sdk/action-groups">
+    See all available methods for each action group
+  </Card>
+  <Card title="Extending" icon="puzzle-piece" href="/sdk/extending">
+    Add custom namespaces to role presets
+  </Card>
+</CardGroup>
