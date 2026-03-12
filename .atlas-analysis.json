@@ -1,0 +1,162 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "x402r SDK",
+  "projectDescription": "TypeScript SDK for x402r refundable payments on EVM chains",
+  "theme": "palm",
+  "primaryColor": "#27bb6e",
+  "lightColor": "#138745",
+  "darkColor": "#2e7dbc",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "SDK Guide",
+            "pages": [
+              "sdk/client",
+              "sdk/action-groups",
+              "sdk/role-presets",
+              "sdk/extending"
+            ]
+          },
+          {
+            "group": "Core API",
+            "pages": [
+              "core/overview",
+              "core/actions",
+              "core/types",
+              "core/config",
+              "core/payment-utils",
+              "core/deploy"
+            ]
+          },
+          {
+            "group": "Helpers",
+            "pages": [
+              "helpers/refundable"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/basic-payment",
+              "examples/refund-flow",
+              "examples/custom-extensions"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Payment Actions",
+            "pages": [
+              "api/payment/authorize",
+              "api/payment/charge",
+              "api/payment/release",
+              "api/payment/refund-in-escrow",
+              "api/payment/refund-post-escrow",
+              "api/payment/get-state",
+              "api/payment/get-amounts"
+            ]
+          },
+          {
+            "group": "Refund Actions",
+            "pages": [
+              "api/refund/request",
+              "api/refund/cancel",
+              "api/refund/deny",
+              "api/refund/refuse",
+              "api/refund/approve"
+            ]
+          },
+          {
+            "group": "Evidence Actions",
+            "pages": [
+              "api/evidence/submit",
+              "api/evidence/get",
+              "api/evidence/get-batch"
+            ]
+          },
+          {
+            "group": "Operator Actions",
+            "pages": [
+              "api/operator/get-config",
+              "api/operator/calculate-fees",
+              "api/operator/distribute-fees"
+            ]
+          },
+          {
+            "group": "Deploy Functions",
+            "pages": [
+              "api/deploy/operator",
+              "api/deploy/conditions",
+              "api/deploy/presets"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Resources",
+            "pages": [
+              "reference/chains",
+              "reference/errors",
+              "reference/contributing",
+              "reference/changelog"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Refundable payments with escrow protection",
+    "Multi-chain EVM support with CREATE3 addresses",
+    "Type-safe client with action groups",
+    "Role-based presets for payer/merchant/arbiter",
+    "Extensible client architecture",
+    "Evidence submission for disputes",
+    "Configurable fee calculations",
+    "x402 HTTP payment option helpers"
+  ],
+  "publicApiSurface": [
+    "createX402r",
+    "createPayerClient",
+    "createMerchantClient",
+    "createArbiterClient",
+    "authorize",
+    "charge",
+    "release",
+    "refundInEscrow",
+    "refundPostEscrow",
+    "requestRefund",
+    "cancelRefundRequest",
+    "denyRefundRequest",
+    "submitEvidence",
+    "getPaymentState",
+    "getPaymentAmounts",
+    "getOperatorConfig",
+    "calculateTotalFees",
+    "deployOperator",
+    "deployMarketplaceOperator",
+    "deployArbiterSetup",
+    "refundable",
+    "computePaymentInfoHash",
+    "validatePaymentInfo",
+    "getChainConfig",
+    "isSupportedChain"
+  ]
+}
